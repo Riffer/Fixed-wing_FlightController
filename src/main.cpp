@@ -37,6 +37,7 @@ THE SOFTWARE.
 #include <math.h>
 #include <Servo.h>
 #include <MPU6050_6Axis_MotionApps612.h>
+#include <MPU6050_6Axis_MotionApps612.h>
 #include <MS5611.h>
 #include <I2Cdev.h>
 
