@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "wstring.h": "c",
+        "printable.h": "c"
+    }
+}
