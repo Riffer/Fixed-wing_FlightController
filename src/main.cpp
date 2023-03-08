@@ -32,9 +32,11 @@ THE SOFTWARE.
 // YOU DECIDE TO USE THIS PARTICULAR CODE FOR ANYTHING.
 
 #include <Arduino.h>
+#include <Arduino.h>
 #include <Wire.h>
 #include <math.h>
 #include <Servo.h>
+#include <MPU6050_6Axis_MotionApps612.h>
 #include <MPU6050_6Axis_MotionApps612.h>
 #include <MS5611.h>
 #include <I2Cdev.h>
@@ -122,6 +124,23 @@ Pid rollPID, pitchPID, yawPID;
 
 volatile bool mpuInterrupt = false;             // Indicates whether MPU interrupt pin has gone high
 void dmpDataReady() {mpuInterrupt = true;}
+
+void initMPU6050();
+void verifyConnection();
+void setGyroAccOffset();
+void calibrateDMP();
+void initServo();
+void initPID();
+void getChannelInput();
+void getDmpYPR();
+void getSystemSignal();
+void manualFlightControl();
+void setAutoYPR();
+void relativeLeveling();
+void setAutoPID();
+void pidLeveling();
+void printYPRToSerial();
+void readGyroData();
 
 void initMPU6050();
 void verifyConnection();
