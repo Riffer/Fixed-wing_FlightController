@@ -360,11 +360,11 @@ void computePID(Pid *target,float input, int limitMin, int limitMax)
 // Setting Flight Control mode
 void getSystemSignal()
 {
-  if((knobChannel > FLIGHT_MODE_0 - DEADZONE) && (knobChannel < FLIGHT_MODE_0 + DEADZONE))
+  if((knobChannel > FLIGHT_MODE_0 - DEADZONE) && (knobChannel < FLIGHT_MODE_0 + DEADZONE)) // 1900-50 to 1900+50 => Flight Mode 0
     systemStatus = 0;
-  else if((knobChannel > FLIGHT_MODE_1 - DEADZONE) && (knobChannel < FLIGHT_MODE_1 + DEADZONE))
+  else if((knobChannel > FLIGHT_MODE_1 - DEADZONE) && (knobChannel < FLIGHT_MODE_1 + DEADZONE))  // 1500-50 to 1500+50 => Flight Mode 1
     systemStatus = 1;
-  else if((knobChannel > FLIGHT_MODE_2 - DEADZONE) && (knobChannel < FLIGHT_MODE_2 + DEADZONE))
+  else if((knobChannel > FLIGHT_MODE_2 - DEADZONE) && (knobChannel < FLIGHT_MODE_2 + DEADZONE)) // 1100-50 to 1100+50 => Flight Mode 2
     systemStatus = 2;
 }
 
@@ -375,13 +375,6 @@ void getChannelInput()
 
   if (CPPM.synchronized()) // only in sync at specific timespans (TODO: more buffer?)
   {
-    /*
-    inputVals.ch1 = CPPM.read_us(0); // Receiver Roll
-    inputVals.ch2 = CPPM.read_us(1); // Receiver Pitch
-    inputVals.ch3 = CPPM.read_us(2); // Receiver Yaw
-    inputVals.ch4 = CPPM.read_us(3); // Intensity Knob
-    */
-
     pitchChannel = CPPM.read_us(PITCH); //Receiver Pitch
     rollChannel = CPPM.read_us(ROLL); // Receiver Roll
     yawChannel = CPPM.read_us(YAW); // Receiver Yaw
@@ -525,11 +518,11 @@ void relativeLeveling()
 {
   if((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
-    servoAileron.write(rollSensor);
+    servoAileron.write(rollSensor); // value from 0 to 180
   }
   else
   {
-    servoAileron.writeMicroseconds(rollChannel);
+    servoAileron.writeMicroseconds(rollChannel); // value from 1000 to 2000
   }
   
   if((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
