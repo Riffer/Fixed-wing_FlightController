@@ -236,7 +236,7 @@ void initMPU6050()
 
   Serial.println(F("Initializing I2C devices..."));
   mpu.initialize();                                           //Initialize Gyro and Accel     
-  pinMode(INTERRUPT_PIN, INPUT);                              //Set Pin2 to Input for Interrupt
+  //pinMode(INTERRUPT_PIN, INPUT);                              //Set Pin2 to Input for Interrupt
 }
 
 void verifyConnection()               
@@ -275,7 +275,7 @@ void calibrateDMP()
     Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
     Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
     Serial.println(F(")..."));
-    attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
+    //attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
     mpuIntStatus = mpu.getIntStatus();
 
     // Set our DMP Ready flag so the main loop() function knows it's okay to use it
