@@ -140,23 +140,6 @@ void pidLeveling();
 void printYPRToSerial();
 void readGyroData();
 
-void initMPU6050();
-void verifyConnection();
-void setGyroAccOffset();
-void calibrateDMP();
-void initServo();
-void initPID();
-void getChannelInput();
-void getDmpYPR();
-void getSystemSignal();
-void manualFlightControl();
-void setAutoYPR();
-void relativeLeveling();
-void setAutoPID();
-void pidLeveling();
-void printYPRToSerial();
-void readGyroData();
-
 void setup()
 {
   PCICR |= (1 << PCIE0);                        //Set PCIE0 to enable PCMSK0 scan.
