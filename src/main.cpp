@@ -34,12 +34,17 @@ THE SOFTWARE.
 #include <Arduino.h>
 #include <Wire.h>
 #include <math.h>
-#include <Servo.h>
 #include <MPU6050_6Axis_MotionApps612.h>
 #include <MS5611.h>
 #include <I2Cdev.h>
 
-#define CPPM
+#define USE_CPPM
+
+#ifdef USE_CPPM
+#include <Servo.h>
+#include <jm_CPPM.h>
+  enum CHANNEL {ROLL = 0, PITCH = 1, YAW = 2, KNOB = 3, CHANNEL_MAX} ;
+#endif
 
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
 // is used in I2Cdev.h
@@ -96,15 +101,19 @@ VectorFloat gravity;            // [x, y, z]            gravity vector
 float ypr[3];                   // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
 int systemStatus = 0;
-
 Servo servoRudder, servoAileron, servoElevator, servoGear;      // Servo Motor
 float rollSensor, pitchSensor, yawSensor;                       // Data of Axis from MPU6050
 float rollChannel, pitchChannel, yawChannel;                    // Data of Axis from Receiver
 double rollPidFiltered, pitchPidFiltered, yawPidFiltered;       // Data of Axis from PID Function
 
+#ifdef USE_CPPM
+float knobChannel;                                              // Flightmodes
+#else
 unsigned long timer[4], currentTime;                            // Timer for Interrupt
 byte lastChannel[4];                                            // For calculate PWM Value
 int pwmValue[4];                                                // PWM Value from Receiver
+#endif
+
 
 //long realPressure;                                            // Pressure value
 //double referencePressure;                                     // Reference P
@@ -144,7 +153,9 @@ void readGyroData();
 
 void setup()
 {
-#ifndef CPPM
+#ifdef USE_CPPM
+  CPPM.begin(); // setup CPPM - will be called in loop
+#else
   PCICR |= (1 << PCIE0);                        //Set PCIE0 to enable PCMSK0 scan.
   PCMSK0 |= (1 << PCINT2);                      //Set PCINT2 (digital input 10)to trigger an interrupt on state change. 10 = roll = Aileron
   PCMSK0 |= (1 << PCINT3);
@@ -345,6 +356,39 @@ void computePID(Pid *target,float input, int limitMin, int limitMax)
   }
 }
 
+#ifdef USE_CPPM
+// Setting Flight Control mode
+void getSystemSignal()
+{
+  if((knobChannel > FLIGHT_MODE_0 - DEADZONE) && (knobChannel < FLIGHT_MODE_0 + DEADZONE))
+    systemStatus = 0;
+  else if((knobChannel > FLIGHT_MODE_1 - DEADZONE) && (knobChannel < FLIGHT_MODE_1 + DEADZONE))
+    systemStatus = 1;
+  else if((knobChannel > FLIGHT_MODE_2 - DEADZONE) && (knobChannel < FLIGHT_MODE_2 + DEADZONE))
+    systemStatus = 2;
+}
+
+// Get Channel PWM value
+void getChannelInput()
+{
+  CPPM.cycle(); // update some variables and check for timeouts...
+
+  if (CPPM.synchronized()) // only in sync at specific timespans (TODO: more buffer?)
+  {
+    /*
+    inputVals.ch1 = CPPM.read_us(0); // Receiver Roll
+    inputVals.ch2 = CPPM.read_us(1); // Receiver Pitch
+    inputVals.ch3 = CPPM.read_us(2); // Receiver Yaw
+    inputVals.ch4 = CPPM.read_us(3); // Intensity Knob
+    */
+
+    pitchChannel = CPPM.read_us(PITCH); //Receiver Pitch
+    rollChannel = CPPM.read_us(ROLL); // Receiver Roll
+    yawChannel = CPPM.read_us(YAW); // Receiver Yaw
+    knobChannel = CPPM.read_us(KNOB); // Intensity Knob
+  }
+}
+#else
 // Setting Flight Control mode
 void getSystemSignal()
 {
@@ -363,6 +407,7 @@ void getChannelInput()
   rollChannel = pwmValue[2];  // channel 3 = pin 12 => roll
   yawChannel = pwmValue[3];   // channel 4 = pin 13 => yaw
 }
+#endif 
 
 // Get YPR from Dmp
 void getDmpYPR()
@@ -548,6 +593,38 @@ void manualFlightControl()
   servoGear.writeMicroseconds(3000 - yawChannel);
 }
 
+#ifdef USE_CPPM
+void printYPRToSerial()
+{
+  //Print DMP Data
+  Serial.print("status: ");
+  Serial.print(systemStatus);
+  Serial.print("\tYaw:");
+  Serial.print(yawSensor);
+  Serial.print("\tRoll: ");
+  Serial.print(rollSensor);
+  Serial.print("\tPitch: ");
+  Serial.print(pitchSensor);
+  Serial.print("\tSignal: ");
+    Serial.print(knobChannel);
+  Serial.print("\tAileron: ");
+  Serial.print(rollChannel);
+  Serial.print("\tElevator: ");
+  Serial.print(pitchChannel);
+  Serial.print("\tRudder: ");
+  Serial.print(yawChannel);
+  Serial.print("\tPIDYaw: ");
+  Serial.print(yawPidFiltered);
+  Serial.print("\tPIDRoll: ");
+  Serial.print(rollPidFiltered);
+  Serial.print("\tPIDPitch: ");
+  Serial.println(pitchPidFiltered);
+  //Serial.print("\tabAlt: ");
+  //Serial.print(absoluteAltitude);
+  //Serial.print("\trelAlt: ");
+  //Serial.println(relativeAltitude);
+}
+#else
 // Print Status of Flight Controller 
 void printYPRToSerial()
 {
@@ -561,7 +638,7 @@ void printYPRToSerial()
   Serial.print("\tPitch: ");
   Serial.print(pitchSensor);
   Serial.print("\tSiganl: ");
-  Serial.print(pwmValue[0]);
+    Serial.print(pwmValue[0]);
   Serial.print("\tAileron: ");
   Serial.print(pwmValue[1]);
   Serial.print("\tElevator: ");
@@ -579,6 +656,7 @@ void printYPRToSerial()
   //Serial.print("\trelAlt: ");
   //Serial.println(relativeAltitude);
 }
+#endif
 
 // This function is currently not use
 // Failsafe function
@@ -589,7 +667,7 @@ void printYPRToSerial()
 //  // TODO: need to apply throttle
 //}
 
-#ifndef CPPM
+#ifndef USE_CPPM
 // Get Interrupt from D8~D13(PCINT0)
 ISR(PCINT0_vect)
 {
