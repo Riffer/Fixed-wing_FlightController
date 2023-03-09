@@ -39,6 +39,8 @@ THE SOFTWARE.
 #include <MS5611.h>
 #include <I2Cdev.h>
 
+#define CPPM
+
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
 // is used in I2Cdev.h
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -142,11 +144,13 @@ void readGyroData();
 
 void setup()
 {
+#ifndef CPPM
   PCICR |= (1 << PCIE0);                        //Set PCIE0 to enable PCMSK0 scan.
   PCMSK0 |= (1 << PCINT2);                      //Set PCINT2 (digital input 10)to trigger an interrupt on state change. 10 = roll = Aileron
   PCMSK0 |= (1 << PCINT3);
   PCMSK0 |= (1 << PCINT4);
   PCMSK0 |= (1 << PCINT5);
+#endif   
 
   initMPU6050();                                  // Initialize MPU6050 for I2C
 
@@ -585,6 +589,7 @@ void printYPRToSerial()
 //  // TODO: need to apply throttle
 //}
 
+#ifndef CPPM
 // Get Interrupt from D8~D13(PCINT0)
 ISR(PCINT0_vect)
 {
@@ -649,3 +654,4 @@ ISR(PCINT0_vect)
     pwmValue[3] = currentTime - timer[3];
   }
 }
+#endif
