@@ -157,6 +157,10 @@ void pidLeveling();
 void printYPRToSerial();
 void readGyroData();
 
+#ifdef USE_CPPM
+void adjustServos();
+#endif
+
 void setup()
 {
 #ifdef USE_CPPM
@@ -221,6 +225,7 @@ void loop()
     relativeLeveling();
     break;
   }
+  adjustServos();
   printYPRToSerial();
 }
 
@@ -635,33 +640,41 @@ ServoWriteMicroseconds(servoGear, 3000 - yawChannel);
 #ifdef USE_CPPM
 void printYPRToSerial()
 {
-  //Print DMP Data
-  Serial.print("status: ");
-  Serial.print(systemStatus);
-  Serial.print(" Yaw:");
-  Serial.print(yawSensor);
-  Serial.print(" Roll: ");
-  Serial.print(rollSensor);
-  Serial.print(" Pitch: ");
-  Serial.print(pitchSensor);
-  Serial.print(" Knob: ");
-    Serial.print(knobChannel);
-  Serial.print(" Ail: ");
-  Serial.print(rollChannel);
-  Serial.print(" Eler: ");
-  Serial.print(pitchChannel);
-  Serial.print(" Rud: ");
-  Serial.print(yawChannel);
-  Serial.print(" PIDYaw: ");
-  Serial.print(yawPidFiltered);
-  Serial.print(" PIDRoll: ");
-  Serial.print(rollPidFiltered);
-  Serial.print(" PIDPitch: ");
-  Serial.println(pitchPidFiltered);
-  //Serial.print("\tabAlt: ");
-  //Serial.print(absoluteAltitude);
-  //Serial.print("\trelAlt: ");
-  //Serial.println(relativeAltitude);
+static unsigned int lastTime = millis();
+
+if (millis() - lastTime < 1000)
+    return;
+
+lastTime = millis();
+Serial.print(servoAileron.readMicroseconds());
+
+// Print DMP Data
+Serial.print("status: ");
+Serial.print(systemStatus);
+Serial.print(" Yaw:");
+Serial.print(yawSensor);
+Serial.print(" Roll: ");
+Serial.print(rollSensor);
+Serial.print(" Pitch: ");
+Serial.print(pitchSensor);
+Serial.print(" Knob: ");
+Serial.print(knobChannel);
+Serial.print(" Ail: ");
+Serial.print(rollChannel);
+Serial.print(" Eler: ");
+Serial.print(pitchChannel);
+Serial.print(" Rud: ");
+Serial.print(yawChannel);
+Serial.print(" PIDYaw: ");
+Serial.print(yawPidFiltered);
+Serial.print(" PIDRoll: ");
+Serial.print(rollPidFiltered);
+Serial.print(" PIDPitch: ");
+Serial.println(pitchPidFiltered);
+// Serial.print("\tabAlt: ");
+// Serial.print(absoluteAltitude);
+// Serial.print("\trelAlt: ");
+// Serial.println(relativeAltitude);
 }
 #else
 // Print Status of Flight Controller 
@@ -709,45 +722,55 @@ void printYPRToSerial()
 #ifdef USE_CPPM
 void adjustServos()
 {
-  static unsigned int loop_start_time = micros();
+static int loopCounter = 0;
+static unsigned long loop_start_time = micros();
 
-  // wait until at least 0,4 miliseconds gone by (1000 micros are 1 milis, 1 second has 1.000.000 micros!) since last time
-  while (micros() - loop_start_time < 4000)
-    delayMicroseconds(4000 - (micros() - loop_start_time)); // originally this just looped, but delay does not consume CPU power
+// wait until at least 0,4 miliseconds gone by (1000 micros are 1 milis, 1 second has 1.000.000 micros!) since last time
+// while (micros() - loop_start_time < 4000)
+//  delayMicroseconds(4000 - (micros() - loop_start_time)); // originally this just looped, but delay does not consume CPU power
+
+while (micros() - loop_start_time < 4000)
+    ;
 
   loop_start_time = micros(); // set loop_start_time to current value for next call
 
-  PORTD |= B11110000;
-  unsigned long timer_channel_1 = servoAileron.readMicroseconds() + loop_start_time;
-  unsigned long timer_channel_2 = servoElevator.readMicroseconds() + loop_start_time;
-  unsigned long timer_channel_3 = servoRudder.readMicroseconds() + loop_start_time;
-  unsigned long timer_channel_4 = servoGear.readMicroseconds() + loop_start_time;
-
-  // PWM out in a loop - initally set high for all 4 channels and look until all 4 channels gone by
-  byte cnt = 0;
-  while (cnt < 4) // leading to slowdown of the loop
+  loopCounter++;
+  if (loopCounter >= 0)
   {
-    cnt = 0;
-    unsigned long esc_loop_start_time = micros();
-    if (timer_channel_1 <= esc_loop_start_time)
+
+    loopCounter = 0;
+    PORTD |= B11110000;
+    unsigned long timer_channel_1 = servoAileron.readMicroseconds() + loop_start_time;
+    unsigned long timer_channel_2 = servoElevator.readMicroseconds() + loop_start_time;
+    unsigned long timer_channel_3 = servoRudder.readMicroseconds() + loop_start_time;
+    unsigned long timer_channel_4 = servoGear.readMicroseconds() + loop_start_time;
+
+    // PWM out in a loop - initally set high for all 4 channels and look until all 4 channels gone by
+    byte cnt = 0;
+    while (cnt < 4) // leading to slowdown of the loop
     {
-      PORTD &= B11101111;
-      cnt++;
-    }
-    if (timer_channel_2 <= esc_loop_start_time)
-    {
-      PORTD &= B11011111;
-      cnt++;
-    }
-    if (timer_channel_3 <= esc_loop_start_time)
-    {
-      PORTD &= B10111111;
-      cnt++;
-    }
-    if (timer_channel_4 <= esc_loop_start_time)
-    {
-      PORTD &= B01111111;
-      cnt++;
+      cnt = 0;
+      unsigned long esc_loop_start_time = micros();
+      if (timer_channel_1 <= esc_loop_start_time)
+      {
+        PORTD &= B11101111;
+        cnt++;
+      }
+      if (timer_channel_2 <= esc_loop_start_time)
+      {
+        PORTD &= B11011111;
+        cnt++;
+      }
+      if (timer_channel_3 <= esc_loop_start_time)
+      {
+        PORTD &= B10111111;
+        cnt++;
+      }
+      if (timer_channel_4 <= esc_loop_start_time)
+      {
+        PORTD &= B01111111;
+        cnt++;
+      }
     }
   }
 }
