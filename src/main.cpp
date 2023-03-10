@@ -38,12 +38,14 @@ THE SOFTWARE.
 #include <MS5611.h>
 #include <I2Cdev.h>
 
+
 #define USE_CPPM
 
 #ifdef USE_CPPM
-#include <Servo.h>
 #include <jm_CPPM.h>
-  enum CHANNEL {ROLL = 0, PITCH = 1, YAW = 2, KNOB = 3, CHANNEL_MAX} ;
+#include "main.h" // also contains FakeServo class
+#else
+#include <Servo.h>
 #endif
 
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
@@ -101,7 +103,11 @@ VectorFloat gravity;            // [x, y, z]            gravity vector
 float ypr[3];                   // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
 int systemStatus = 0;
-Servo servoRudder, servoAileron, servoElevator, servoGear;      // Servo Motor
+#ifdef USE_CPPM
+  FakeServo servoRudder, servoAileron, servoElevator, servoGear;      // Servo Motor
+#else
+  Servo servoRudder, servoAileron, servoElevator, servoGear;      // Servo Motor
+#endif
 float rollSensor, pitchSensor, yawSensor;                       // Data of Axis from MPU6050
 float rollChannel, pitchChannel, yawChannel;                    // Data of Axis from Receiver
 double rollPidFiltered, pitchPidFiltered, yawPidFiltered;       // Data of Axis from PID Function
@@ -300,6 +306,22 @@ void calibrateDMP()
 }
 
 // Attach pin to servo, And set to middle
+#ifdef USE_CPPM
+void initServo()
+{
+  serial_printlnF("setting DIGITAL PIN 4, 5, 6, 7 as OUTPUTS");
+
+  servoAileron.attach(4); // using FakeServo sets pinMode internall
+  servoElevator.attach(5);
+  servoGear.attach(6);
+  servoRudder.attach(7);
+
+  servoAileron.write(90); 
+  servoElevator.write(90);
+  servoGear.write(90);
+  servoRudder.write(90);
+}
+#else
 void initServo()
 {
   servoAileron.attach(5);
@@ -312,6 +334,7 @@ void initServo()
   servoRudder.write(90);
   servoGear.write(90);
 }
+#endif
 
 // Set PID dT
 void initPID()
@@ -520,30 +543,38 @@ void relativeLeveling()
 {
   if((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
-    servoAileron.write(rollSensor); // value from 0 to 180
+    //servoAileron.write(rollSensor); // value from 0 to 180
+    ServoWrite(servoAileron, rollSensor);
   }
   else
   {
-    servoAileron.writeMicroseconds(rollChannel); // value from 1000 to 2000
+    //servoAileron.writeMicroseconds(rollChannel); // value from 1000 to 2000
+    ServoWriteMicroseconds(servoAileron, rollChannel);
   }
   
   if((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
   {
-    servoElevator.write(pitchSensor);
+    //servoElevator.write(pitchSensor);
+    ServoWrite(servoElevator, pitchSensor);
   }
   else
   {
-    servoElevator.writeMicroseconds(pitchChannel);
+    //servoElevator.writeMicroseconds(pitchChannel);
+    ServoWriteMicroseconds(servoElevator, pitchChannel);
   }
   
   if((yawChannel > YAW_CHANNEL_OFFSET - DEADZONE) && (yawChannel < YAW_CHANNEL_OFFSET + DEADZONE))
   {
-    servoRudder.write(yawSensor);
+    //servoRudder.write(yawSensor);
+    ServoWrite(servoRudder, yawSensor);
   }
   else
   {
-    servoRudder.writeMicroseconds(yawChannel);
-    servoGear.writeMicroseconds(3000 - yawChannel);
+    //servoRudder.writeMicroseconds(yawChannel);
+    //servoGear.writeMicroseconds(3000 - yawChannel);
+    ServoWriteMicroseconds(servoRudder, yawChannel);
+    ServoWriteMicroseconds(servoGear, 3000 - yawChannel);
+
   }
 }
 
@@ -552,40 +583,53 @@ void pidLeveling()
 {
   if((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
-    servoAileron.write(rollPidFiltered);
+    //servoAileron.write(rollPidFiltered);
+    ServoWrite(servoAileron, rollPidFiltered);
   }
   else
   {
-    servoAileron.writeMicroseconds(rollChannel);
+    //servoAileron.writeMicroseconds(rollChannel);
+    ServoWriteMicroseconds(servoAileron, rollChannel);
   }
   
   if((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
   {
-    servoElevator.write(pitchPidFiltered);
+    //servoElevator.write(pitchPidFiltered);
+    ServoWrite(servoElevator, pitchPidFiltered);
   }
   else
   {
-    servoElevator.writeMicroseconds(pitchChannel);
+    //servoElevator.writeMicroseconds(pitchChannel);
+    ServoWriteMicroseconds(servoElevator, pitchChannel);
   }
   
   if((yawChannel > YAW_CHANNEL_OFFSET - DEADZONE) && (yawChannel < YAW_CHANNEL_OFFSET + DEADZONE))
   {
-    servoRudder.write(yawPidFiltered);
+    //servoRudder.write(yawPidFiltered);
+    ServoWrite(servoRudder, yawPidFiltered);
   }
   else
   {
-    servoRudder.writeMicroseconds(yawChannel);
-    servoGear.writeMicroseconds(3000 - yawChannel);
+    //servoRudder.writeMicroseconds(yawChannel);
+    //servoGear.writeMicroseconds(3000 - yawChannel);
+    ServoWriteMicroseconds(servoRudder, yawChannel);
+    ServoWriteMicroseconds(servoGear, 3000-yawChannel);
   }
 }
 
 // Manual Control
 void manualFlightControl()
 {
-  servoAileron.writeMicroseconds(rollChannel);
-  servoElevator.writeMicroseconds(pitchChannel);
-  servoRudder.writeMicroseconds(yawChannel);
-  servoGear.writeMicroseconds(3000 - yawChannel);
+  //servoAileron.writeMicroseconds(rollChannel);
+  //servoElevator.writeMicroseconds(pitchChannel);
+  //servoRudder.writeMicroseconds(yawChannel);
+  //servoGear.writeMicroseconds(3000 - yawChannel);
+
+ServoWriteMicroseconds(servoAileron, rollChannel);
+ServoWriteMicroseconds(servoElevator, pitchChannel);
+ServoWriteMicroseconds(servoRudder, yawChannel);
+ServoWriteMicroseconds(servoGear, 3000 - yawChannel);
+
 }
 
 #ifdef USE_CPPM
@@ -662,7 +706,53 @@ void printYPRToSerial()
 //  // TODO: need to apply throttle
 //}
 
-#ifndef USE_CPPM
+#ifdef USE_CPPM
+void adjustServos()
+{
+  static unsigned int loop_start_time = micros();
+
+  // wait until at least 0,4 miliseconds gone by (1000 micros are 1 milis, 1 second has 1.000.000 micros!) since last time
+  while (micros() - loop_start_time < 4000)
+    delayMicroseconds(4000 - (micros() - loop_start_time)); // originally this just looped, but delay does not consume CPU power
+
+  loop_start_time = micros(); // set loop_start_time to current value for next call
+
+  PORTD |= B11110000;
+  unsigned long timer_channel_1 = servoAileron.readMicroseconds() + loop_start_time;
+  unsigned long timer_channel_2 = servoElevator.readMicroseconds() + loop_start_time;
+  unsigned long timer_channel_3 = servoRudder.readMicroseconds() + loop_start_time;
+  unsigned long timer_channel_4 = servoGear.readMicroseconds() + loop_start_time;
+
+  // PWM out in a loop - initally set high for all 4 channels and look until all 4 channels gone by
+  byte cnt = 0;
+  while (cnt < 4) // leading to slowdown of the loop
+  {
+    cnt = 0;
+    unsigned long esc_loop_start_time = micros();
+    if (timer_channel_1 <= esc_loop_start_time)
+    {
+      PORTD &= B11101111;
+      cnt++;
+    }
+    if (timer_channel_2 <= esc_loop_start_time)
+    {
+      PORTD &= B11011111;
+      cnt++;
+    }
+    if (timer_channel_3 <= esc_loop_start_time)
+    {
+      PORTD &= B10111111;
+      cnt++;
+    }
+    if (timer_channel_4 <= esc_loop_start_time)
+    {
+      PORTD &= B01111111;
+      cnt++;
+    }
+  }
+}
+
+#else
 // Get Interrupt from D8~D13(PCINT0)
 ISR(PCINT0_vect)
 {
