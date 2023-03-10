@@ -42,9 +42,10 @@ THE SOFTWARE.
 #define USE_CPPM
 
 #ifdef USE_CPPM
-#include <Servo.h>
 #include <jm_CPPM.h>
-#include "main.h"
+#include "main.h" // also contains FakeServo class
+#else
+#include <Servo.h>
 #endif
 
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
@@ -102,14 +103,17 @@ VectorFloat gravity;            // [x, y, z]            gravity vector
 float ypr[3];                   // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
 int systemStatus = 0;
-Servo servoRudder, servoAileron, servoElevator, servoGear;      // Servo Motor
+#ifdef USE_CPPM
+  FakeServo servoRudder, servoAileron, servoElevator, servoGear;      // Servo Motor
+#else
+  Servo servoRudder, servoAileron, servoElevator, servoGear;      // Servo Motor
+#endif
 float rollSensor, pitchSensor, yawSensor;                       // Data of Axis from MPU6050
 float rollChannel, pitchChannel, yawChannel;                    // Data of Axis from Receiver
 double rollPidFiltered, pitchPidFiltered, yawPidFiltered;       // Data of Axis from PID Function
 
 #ifdef USE_CPPM
 float knobChannel;                                              // Flightmodes
-channelValStruct servoVals;
 #else
 unsigned long timer[4], currentTime;                            // Timer for Interrupt
 byte lastChannel[4];                                            // For calculate PWM Value
@@ -305,15 +309,15 @@ void initServo()
 {
   serial_printlnF("setting DIGITAL PIN 4, 5, 6, 7 as OUTPUTS");
 
-  pinMode(4, OUTPUT); // ROLL
-  pinMode(5, OUTPUT); // PITCH
-  pinMode(6, OUTPUT); // INVERTED ROLL
-  pinMode(7, OUTPUT); // PITCH + YAW?  
+  servoAileron.attach(4); // using FakeServo sets pinMode internall
+  servoElevator.attach(5);
+  servoGear.attach(6);
+  servoRudder.attach(7);
 
-  servoVals.ch1 = PWM_MID;
-  servoVals.ch2 = PWM_MID;
-  servoVals.ch3 = PWM_MID;
-  servoVals.ch4 = PWM_MID;
+  servoAileron.write(90); 
+  servoElevator.write(90);
+  servoGear.write(90);
+  servoRudder.write(90);
 }
 #else
 void initServo()
@@ -712,10 +716,10 @@ void adjustServos()
   loop_start_time = micros(); // set loop_start_time to current value for next call
 
   PORTD |= B11110000;
-  unsigned long timer_channel_1 = servoVals.ch1 + loop_start_time;
-  unsigned long timer_channel_2 = servoVals.ch2 + loop_start_time;
-  unsigned long timer_channel_3 = servoVals.ch3 + loop_start_time;
-  unsigned long timer_channel_4 = servoVals.ch4 + loop_start_time;
+  unsigned long timer_channel_1 = servoAileron.readMicroseconds() + loop_start_time;
+  unsigned long timer_channel_2 = servoElevator.readMicroseconds() + loop_start_time;
+  unsigned long timer_channel_3 = servoRudder.readMicroseconds() + loop_start_time;
+  unsigned long timer_channel_4 = servoGear.readMicroseconds() + loop_start_time;
 
   // PWM out in a loop - initally set high for all 4 channels and look until all 4 channels gone by
   byte cnt = 0;
