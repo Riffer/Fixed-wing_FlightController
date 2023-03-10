@@ -170,6 +170,7 @@ void setup()
 //  Serial.println(ms5611.getOversampling());
   
   verifyConnection();                             // Veritfy connection and wait for start
+  //while(true) delay(5000);
   Serial.println(F("Initializing DMP..."));
   devStatus = mpu.dmpInitialize();                // Load and configure the DMP
   setGyroAccOffset();                             // Supply your own gyro offsets here, scaled for min sensitivity
@@ -243,6 +244,7 @@ void verifyConnection()
 {
   //Verify connection
   Serial.println(F("Testing device connections..."));
+  Serial.println(mpu.getDeviceID());
   Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
 }
 
@@ -302,8 +304,8 @@ void initServo()
 {
   servoAileron.attach(5);
   servoElevator.attach(6);
-  servoRudder.attach(9);
-  servoGear.attach(3);
+  servoRudder.attach(7);
+  servoGear.attach(8);
 
   servoAileron.write(90);
   servoElevator.write(90);
@@ -592,25 +594,25 @@ void printYPRToSerial()
   //Print DMP Data
   Serial.print("status: ");
   Serial.print(systemStatus);
-  Serial.print("\tYaw:");
+  Serial.print(" Yaw:");
   Serial.print(yawSensor);
-  Serial.print("\tRoll: ");
+  Serial.print(" Roll: ");
   Serial.print(rollSensor);
-  Serial.print("\tPitch: ");
+  Serial.print(" Pitch: ");
   Serial.print(pitchSensor);
-  Serial.print("\tSignal: ");
+  Serial.print(" Knob: ");
     Serial.print(knobChannel);
-  Serial.print("\tAileron: ");
+  Serial.print(" Ail: ");
   Serial.print(rollChannel);
-  Serial.print("\tElevator: ");
+  Serial.print(" Eler: ");
   Serial.print(pitchChannel);
-  Serial.print("\tRudder: ");
+  Serial.print(" Rud: ");
   Serial.print(yawChannel);
-  Serial.print("\tPIDYaw: ");
+  Serial.print(" PIDYaw: ");
   Serial.print(yawPidFiltered);
-  Serial.print("\tPIDRoll: ");
+  Serial.print(" PIDRoll: ");
   Serial.print(rollPidFiltered);
-  Serial.print("\tPIDPitch: ");
+  Serial.print(" PIDPitch: ");
   Serial.println(pitchPidFiltered);
   //Serial.print("\tabAlt: ");
   //Serial.print(absoluteAltitude);
