@@ -34,10 +34,19 @@ THE SOFTWARE.
 #include <Arduino.h>
 #include <Wire.h>
 #include <math.h>
-#include <Servo.h>
 #include <MPU6050_6Axis_MotionApps612.h>
 #include <MS5611.h>
 #include <I2Cdev.h>
+
+
+#define USE_CPPM
+
+#ifdef USE_CPPM
+#include <jm_CPPM.h>
+#include "main.h" // also contains FakeServo class
+#else
+#include <Servo.h>
+#endif
 
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
 // is used in I2Cdev.h
@@ -94,15 +103,23 @@ VectorFloat gravity;            // [x, y, z]            gravity vector
 float ypr[3];                   // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
 int systemStatus = 0;
-
-Servo servoRudder, servoAileron, servoElevator, servoGear;      // Servo Motor
+#ifdef USE_CPPM
+  FakeServo servoRudder, servoAileron, servoElevator, servoGear;      // Servo Motor
+#else
+  Servo servoRudder, servoAileron, servoElevator, servoGear;      // Servo Motor
+#endif
 float rollSensor, pitchSensor, yawSensor;                       // Data of Axis from MPU6050
 float rollChannel, pitchChannel, yawChannel;                    // Data of Axis from Receiver
 double rollPidFiltered, pitchPidFiltered, yawPidFiltered;       // Data of Axis from PID Function
 
+#ifdef USE_CPPM
+float knobChannel;                                              // Flightmodes
+#else
 unsigned long timer[4], currentTime;                            // Timer for Interrupt
 byte lastChannel[4];                                            // For calculate PWM Value
 int pwmValue[4];                                                // PWM Value from Receiver
+#endif
+
 
 //long realPressure;                                            // Pressure value
 //double referencePressure;                                     // Reference P
@@ -140,30 +157,21 @@ void pidLeveling();
 void printYPRToSerial();
 void readGyroData();
 
-void initMPU6050();
-void verifyConnection();
-void setGyroAccOffset();
-void calibrateDMP();
-void initServo();
-void initPID();
-void getChannelInput();
-void getDmpYPR();
-void getSystemSignal();
-void manualFlightControl();
-void setAutoYPR();
-void relativeLeveling();
-void setAutoPID();
-void pidLeveling();
-void printYPRToSerial();
-void readGyroData();
+#ifdef USE_CPPM
+void adjustServos();
+#endif
 
 void setup()
 {
+#ifdef USE_CPPM
+  CPPM.begin(); // setup CPPM - will be called in loop
+#else
   PCICR |= (1 << PCIE0);                        //Set PCIE0 to enable PCMSK0 scan.
   PCMSK0 |= (1 << PCINT2);                      //Set PCINT2 (digital input 10)to trigger an interrupt on state change. 10 = roll = Aileron
   PCMSK0 |= (1 << PCINT3);
   PCMSK0 |= (1 << PCINT4);
   PCMSK0 |= (1 << PCINT5);
+#endif   
 
   initMPU6050();                                  // Initialize MPU6050 for I2C
 
@@ -172,6 +180,7 @@ void setup()
 //  Serial.println(ms5611.getOversampling());
   
   verifyConnection();                             // Veritfy connection and wait for start
+  //while(true) delay(5000);
   Serial.println(F("Initializing DMP..."));
   devStatus = mpu.dmpInitialize();                // Load and configure the DMP
   setGyroAccOffset();                             // Supply your own gyro offsets here, scaled for min sensitivity
@@ -216,6 +225,7 @@ void loop()
     relativeLeveling();
     break;
   }
+  adjustServos();
   printYPRToSerial();
 }
 
@@ -238,13 +248,14 @@ void initMPU6050()
 
   Serial.println(F("Initializing I2C devices..."));
   mpu.initialize();                                           //Initialize Gyro and Accel     
-  pinMode(INTERRUPT_PIN, INPUT);                              //Set Pin2 to Input for Interrupt
+  //pinMode(INTERRUPT_PIN, INPUT);                              //Set Pin2 to Input for Interrupt
 }
 
 void verifyConnection()               
 {
   //Verify connection
   Serial.println(F("Testing device connections..."));
+  Serial.println(mpu.getDeviceID());
   Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
 }
 
@@ -277,7 +288,7 @@ void calibrateDMP()
     Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
     Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
     Serial.println(F(")..."));
-    attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
+    //attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
     mpuIntStatus = mpu.getIntStatus();
 
     // Set our DMP Ready flag so the main loop() function knows it's okay to use it
@@ -300,18 +311,35 @@ void calibrateDMP()
 }
 
 // Attach pin to servo, And set to middle
+#ifdef USE_CPPM
+void initServo()
+{
+  serial_printlnF("setting DIGITAL PIN 4, 5, 6, 7 as OUTPUTS");
+
+  servoAileron.attach(4); // using FakeServo sets pinMode internall
+  servoElevator.attach(5);
+  servoGear.attach(6);
+  servoRudder.attach(7);
+
+  servoAileron.write(90); 
+  servoElevator.write(90);
+  servoGear.write(90);
+  servoRudder.write(90);
+}
+#else
 void initServo()
 {
   servoAileron.attach(5);
   servoElevator.attach(6);
-  servoRudder.attach(9);
-  servoGear.attach(3);
+  servoRudder.attach(7);
+  servoGear.attach(8);
 
   servoAileron.write(90);
   servoElevator.write(90);
   servoRudder.write(90);
   servoGear.write(90);
 }
+#endif
 
 // Set PID dT
 void initPID()
@@ -358,6 +386,32 @@ void computePID(Pid *target,float input, int limitMin, int limitMax)
   }
 }
 
+#ifdef USE_CPPM
+// Setting Flight Control mode
+void getSystemSignal()
+{
+  if((knobChannel > FLIGHT_MODE_0 - DEADZONE) && (knobChannel < FLIGHT_MODE_0 + DEADZONE)) // 1900-50 to 1900+50 => Flight Mode 0
+    systemStatus = 0;
+  else if((knobChannel > FLIGHT_MODE_1 - DEADZONE) && (knobChannel < FLIGHT_MODE_1 + DEADZONE))  // 1500-50 to 1500+50 => Flight Mode 1
+    systemStatus = 1;
+  else if((knobChannel > FLIGHT_MODE_2 - DEADZONE) && (knobChannel < FLIGHT_MODE_2 + DEADZONE)) // 1100-50 to 1100+50 => Flight Mode 2
+    systemStatus = 2;
+}
+
+// Get Channel PWM value
+void getChannelInput()
+{
+  CPPM.cycle(); // update some variables and check for timeouts...
+
+  if (CPPM.synchronized()) // only in sync at specific timespans (TODO: more buffer?)
+  {
+    pitchChannel = CPPM.read_us(PITCH); //Receiver Pitch
+    rollChannel = CPPM.read_us(ROLL); // Receiver Roll
+    yawChannel = CPPM.read_us(YAW); // Receiver Yaw
+    knobChannel = CPPM.read_us(KNOB); // Intensity Knob
+  }
+}
+#else
 // Setting Flight Control mode
 void getSystemSignal()
 {
@@ -376,6 +430,7 @@ void getChannelInput()
   rollChannel = pwmValue[2];  // channel 3 = pin 12 => roll
   yawChannel = pwmValue[3];   // channel 4 = pin 13 => yaw
 }
+#endif 
 
 // Get YPR from Dmp
 void getDmpYPR()
@@ -493,30 +548,38 @@ void relativeLeveling()
 {
   if((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
-    servoAileron.write(rollSensor);
+    //servoAileron.write(rollSensor); // value from 0 to 180
+    ServoWrite(servoAileron, rollSensor);
   }
   else
   {
-    servoAileron.writeMicroseconds(rollChannel);
+    //servoAileron.writeMicroseconds(rollChannel); // value from 1000 to 2000
+    ServoWriteMicroseconds(servoAileron, rollChannel);
   }
   
   if((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
   {
-    servoElevator.write(pitchSensor);
+    //servoElevator.write(pitchSensor);
+    ServoWrite(servoElevator, pitchSensor);
   }
   else
   {
-    servoElevator.writeMicroseconds(pitchChannel);
+    //servoElevator.writeMicroseconds(pitchChannel);
+    ServoWriteMicroseconds(servoElevator, pitchChannel);
   }
   
   if((yawChannel > YAW_CHANNEL_OFFSET - DEADZONE) && (yawChannel < YAW_CHANNEL_OFFSET + DEADZONE))
   {
-    servoRudder.write(yawSensor);
+    //servoRudder.write(yawSensor);
+    ServoWrite(servoRudder, yawSensor);
   }
   else
   {
-    servoRudder.writeMicroseconds(yawChannel);
-    servoGear.writeMicroseconds(3000 - yawChannel);
+    //servoRudder.writeMicroseconds(yawChannel);
+    //servoGear.writeMicroseconds(3000 - yawChannel);
+    ServoWriteMicroseconds(servoRudder, yawChannel);
+    ServoWriteMicroseconds(servoGear, 3000 - yawChannel);
+
   }
 }
 
@@ -525,42 +588,95 @@ void pidLeveling()
 {
   if((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
-    servoAileron.write(rollPidFiltered);
+    //servoAileron.write(rollPidFiltered);
+    ServoWrite(servoAileron, rollPidFiltered);
   }
   else
   {
-    servoAileron.writeMicroseconds(rollChannel);
+    //servoAileron.writeMicroseconds(rollChannel);
+    ServoWriteMicroseconds(servoAileron, rollChannel);
   }
   
   if((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
   {
-    servoElevator.write(pitchPidFiltered);
+    //servoElevator.write(pitchPidFiltered);
+    ServoWrite(servoElevator, pitchPidFiltered);
   }
   else
   {
-    servoElevator.writeMicroseconds(pitchChannel);
+    //servoElevator.writeMicroseconds(pitchChannel);
+    ServoWriteMicroseconds(servoElevator, pitchChannel);
   }
   
   if((yawChannel > YAW_CHANNEL_OFFSET - DEADZONE) && (yawChannel < YAW_CHANNEL_OFFSET + DEADZONE))
   {
-    servoRudder.write(yawPidFiltered);
+    //servoRudder.write(yawPidFiltered);
+    ServoWrite(servoRudder, yawPidFiltered);
   }
   else
   {
-    servoRudder.writeMicroseconds(yawChannel);
-    servoGear.writeMicroseconds(3000 - yawChannel);
+    //servoRudder.writeMicroseconds(yawChannel);
+    //servoGear.writeMicroseconds(3000 - yawChannel);
+    ServoWriteMicroseconds(servoRudder, yawChannel);
+    ServoWriteMicroseconds(servoGear, 3000-yawChannel);
   }
 }
 
 // Manual Control
 void manualFlightControl()
 {
-  servoAileron.writeMicroseconds(rollChannel);
-  servoElevator.writeMicroseconds(pitchChannel);
-  servoRudder.writeMicroseconds(yawChannel);
-  servoGear.writeMicroseconds(3000 - yawChannel);
+  //servoAileron.writeMicroseconds(rollChannel);
+  //servoElevator.writeMicroseconds(pitchChannel);
+  //servoRudder.writeMicroseconds(yawChannel);
+  //servoGear.writeMicroseconds(3000 - yawChannel);
+
+ServoWriteMicroseconds(servoAileron, rollChannel);
+ServoWriteMicroseconds(servoElevator, pitchChannel);
+ServoWriteMicroseconds(servoRudder, yawChannel);
+ServoWriteMicroseconds(servoGear, 3000 - yawChannel);
+
 }
 
+#ifdef USE_CPPM
+void printYPRToSerial()
+{
+static unsigned int lastTime = millis();
+
+if (millis() - lastTime < 1000)
+    return;
+
+lastTime = millis();
+Serial.print(servoAileron.readMicroseconds());
+
+// Print DMP Data
+Serial.print("status: ");
+Serial.print(systemStatus);
+Serial.print(" Yaw:");
+Serial.print(yawSensor);
+Serial.print(" Roll: ");
+Serial.print(rollSensor);
+Serial.print(" Pitch: ");
+Serial.print(pitchSensor);
+Serial.print(" Knob: ");
+Serial.print(knobChannel);
+Serial.print(" Ail: ");
+Serial.print(rollChannel);
+Serial.print(" Eler: ");
+Serial.print(pitchChannel);
+Serial.print(" Rud: ");
+Serial.print(yawChannel);
+Serial.print(" PIDYaw: ");
+Serial.print(yawPidFiltered);
+Serial.print(" PIDRoll: ");
+Serial.print(rollPidFiltered);
+Serial.print(" PIDPitch: ");
+Serial.println(pitchPidFiltered);
+// Serial.print("\tabAlt: ");
+// Serial.print(absoluteAltitude);
+// Serial.print("\trelAlt: ");
+// Serial.println(relativeAltitude);
+}
+#else
 // Print Status of Flight Controller 
 void printYPRToSerial()
 {
@@ -574,7 +690,7 @@ void printYPRToSerial()
   Serial.print("\tPitch: ");
   Serial.print(pitchSensor);
   Serial.print("\tSiganl: ");
-  Serial.print(pwmValue[0]);
+    Serial.print(pwmValue[0]);
   Serial.print("\tAileron: ");
   Serial.print(pwmValue[1]);
   Serial.print("\tElevator: ");
@@ -592,6 +708,7 @@ void printYPRToSerial()
   //Serial.print("\trelAlt: ");
   //Serial.println(relativeAltitude);
 }
+#endif
 
 // This function is currently not use
 // Failsafe function
@@ -602,6 +719,63 @@ void printYPRToSerial()
 //  // TODO: need to apply throttle
 //}
 
+#ifdef USE_CPPM
+void adjustServos()
+{
+static int loopCounter = 0;
+static unsigned long loop_start_time = micros();
+
+// wait until at least 0,4 miliseconds gone by (1000 micros are 1 milis, 1 second has 1.000.000 micros!) since last time
+// while (micros() - loop_start_time < 4000)
+//  delayMicroseconds(4000 - (micros() - loop_start_time)); // originally this just looped, but delay does not consume CPU power
+
+while (micros() - loop_start_time < 4000)
+    ;
+
+  loop_start_time = micros(); // set loop_start_time to current value for next call
+
+  loopCounter++;
+  if (loopCounter >= 0)
+  {
+
+    loopCounter = 0;
+    PORTD |= B11110000;
+    unsigned long timer_channel_1 = servoAileron.readMicroseconds() + loop_start_time;
+    unsigned long timer_channel_2 = servoElevator.readMicroseconds() + loop_start_time;
+    unsigned long timer_channel_3 = servoRudder.readMicroseconds() + loop_start_time;
+    unsigned long timer_channel_4 = servoGear.readMicroseconds() + loop_start_time;
+
+    // PWM out in a loop - initally set high for all 4 channels and look until all 4 channels gone by
+    byte cnt = 0;
+    while (cnt < 4) // leading to slowdown of the loop
+    {
+      cnt = 0;
+      unsigned long esc_loop_start_time = micros();
+      if (timer_channel_1 <= esc_loop_start_time)
+      {
+        PORTD &= B11101111;
+        cnt++;
+      }
+      if (timer_channel_2 <= esc_loop_start_time)
+      {
+        PORTD &= B11011111;
+        cnt++;
+      }
+      if (timer_channel_3 <= esc_loop_start_time)
+      {
+        PORTD &= B10111111;
+        cnt++;
+      }
+      if (timer_channel_4 <= esc_loop_start_time)
+      {
+        PORTD &= B01111111;
+        cnt++;
+      }
+    }
+  }
+}
+
+#else
 // Get Interrupt from D8~D13(PCINT0)
 ISR(PCINT0_vect)
 {
@@ -666,3 +840,4 @@ ISR(PCINT0_vect)
     pwmValue[3] = currentTime - timer[3];
   }
 }
+#endif
