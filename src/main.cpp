@@ -38,12 +38,13 @@ THE SOFTWARE.
 #include <MS5611.h>
 #include <I2Cdev.h>
 
+
 #define USE_CPPM
 
 #ifdef USE_CPPM
 #include <Servo.h>
 #include <jm_CPPM.h>
-  enum CHANNEL {ROLL = 0, PITCH = 1, YAW = 2, KNOB = 3, CHANNEL_MAX} ;
+#include "main.h"
 #endif
 
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
@@ -108,6 +109,7 @@ double rollPidFiltered, pitchPidFiltered, yawPidFiltered;       // Data of Axis 
 
 #ifdef USE_CPPM
 float knobChannel;                                              // Flightmodes
+channelValStruct servoVals;
 #else
 unsigned long timer[4], currentTime;                            // Timer for Interrupt
 byte lastChannel[4];                                            // For calculate PWM Value
@@ -660,7 +662,53 @@ void printYPRToSerial()
 //  // TODO: need to apply throttle
 //}
 
-#ifndef USE_CPPM
+#ifdef USE_CPPM
+void adjustServos()
+{
+  static unsigned int loop_start_time = micros();
+
+  // wait until at least 0,4 miliseconds gone by (1000 micros are 1 milis, 1 second has 1.000.000 micros!) since last time
+  while (micros() - loop_start_time < 4000)
+    delayMicroseconds(4000 - (micros() - loop_start_time)); // originally this just looped, but delay does not consume CPU power
+
+  loop_start_time = micros(); // set loop_start_time to current value for next call
+
+  PORTD |= B11110000;
+  unsigned long timer_channel_1 = servoVals.ch1 + loop_start_time;
+  unsigned long timer_channel_2 = servoVals.ch2 + loop_start_time;
+  unsigned long timer_channel_3 = servoVals.ch3 + loop_start_time;
+  unsigned long timer_channel_4 = servoVals.ch4 + loop_start_time;
+
+  // PWM out in a loop - initally set high for all 4 channels and look until all 4 channels gone by
+  byte cnt = 0;
+  while (cnt < 4) // leading to slowdown of the loop
+  {
+    cnt = 0;
+    unsigned long esc_loop_start_time = micros();
+    if (timer_channel_1 <= esc_loop_start_time)
+    {
+      PORTD &= B11101111;
+      cnt++;
+    }
+    if (timer_channel_2 <= esc_loop_start_time)
+    {
+      PORTD &= B11011111;
+      cnt++;
+    }
+    if (timer_channel_3 <= esc_loop_start_time)
+    {
+      PORTD &= B10111111;
+      cnt++;
+    }
+    if (timer_channel_4 <= esc_loop_start_time)
+    {
+      PORTD &= B01111111;
+      cnt++;
+    }
+  }
+}
+
+#else
 // Get Interrupt from D8~D13(PCINT0)
 ISR(PCINT0_vect)
 {
