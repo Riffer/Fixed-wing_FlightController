@@ -300,6 +300,22 @@ void calibrateDMP()
 }
 
 // Attach pin to servo, And set to middle
+#ifdef USE_CPPM
+void initServo()
+{
+  serial_printlnF("setting DIGITAL PIN 4, 5, 6, 7 as OUTPUTS");
+
+  pinMode(4, OUTPUT); // ROLL
+  pinMode(5, OUTPUT); // PITCH
+  pinMode(6, OUTPUT); // INVERTED ROLL
+  pinMode(7, OUTPUT); // PITCH + YAW?  
+
+  servoVals.ch1 = PWM_MID;
+  servoVals.ch2 = PWM_MID;
+  servoVals.ch3 = PWM_MID;
+  servoVals.ch4 = PWM_MID;
+}
+#else
 void initServo()
 {
   servoAileron.attach(5);
@@ -312,6 +328,7 @@ void initServo()
   servoRudder.write(90);
   servoGear.write(90);
 }
+#endif
 
 // Set PID dT
 void initPID()
@@ -520,30 +537,38 @@ void relativeLeveling()
 {
   if((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
-    servoAileron.write(rollSensor); // value from 0 to 180
+    //servoAileron.write(rollSensor); // value from 0 to 180
+    ServoWrite(servoAileron, rollSensor);
   }
   else
   {
-    servoAileron.writeMicroseconds(rollChannel); // value from 1000 to 2000
+    //servoAileron.writeMicroseconds(rollChannel); // value from 1000 to 2000
+    ServoWriteMicroseconds(servoAileron, rollChannel);
   }
   
   if((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
   {
-    servoElevator.write(pitchSensor);
+    //servoElevator.write(pitchSensor);
+    ServoWrite(servoElevator, pitchSensor);
   }
   else
   {
-    servoElevator.writeMicroseconds(pitchChannel);
+    //servoElevator.writeMicroseconds(pitchChannel);
+    ServoWriteMicroseconds(servoElevator, pitchChannel);
   }
   
   if((yawChannel > YAW_CHANNEL_OFFSET - DEADZONE) && (yawChannel < YAW_CHANNEL_OFFSET + DEADZONE))
   {
-    servoRudder.write(yawSensor);
+    //servoRudder.write(yawSensor);
+    ServoWrite(servoRudder, yawSensor);
   }
   else
   {
-    servoRudder.writeMicroseconds(yawChannel);
-    servoGear.writeMicroseconds(3000 - yawChannel);
+    //servoRudder.writeMicroseconds(yawChannel);
+    //servoGear.writeMicroseconds(3000 - yawChannel);
+    ServoWriteMicroseconds(servoRudder, yawChannel);
+    ServoWriteMicroseconds(servoGear, 3000 - yawChannel);
+
   }
 }
 
@@ -552,40 +577,53 @@ void pidLeveling()
 {
   if((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
-    servoAileron.write(rollPidFiltered);
+    //servoAileron.write(rollPidFiltered);
+    ServoWrite(servoAileron, rollPidFiltered);
   }
   else
   {
-    servoAileron.writeMicroseconds(rollChannel);
+    //servoAileron.writeMicroseconds(rollChannel);
+    ServoWriteMicroseconds(servoAileron, rollChannel);
   }
   
   if((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
   {
-    servoElevator.write(pitchPidFiltered);
+    //servoElevator.write(pitchPidFiltered);
+    ServoWrite(servoElevator, pitchPidFiltered);
   }
   else
   {
-    servoElevator.writeMicroseconds(pitchChannel);
+    //servoElevator.writeMicroseconds(pitchChannel);
+    ServoWriteMicroseconds(servoElevator, pitchChannel);
   }
   
   if((yawChannel > YAW_CHANNEL_OFFSET - DEADZONE) && (yawChannel < YAW_CHANNEL_OFFSET + DEADZONE))
   {
-    servoRudder.write(yawPidFiltered);
+    //servoRudder.write(yawPidFiltered);
+    ServoWrite(servoRudder, yawPidFiltered);
   }
   else
   {
-    servoRudder.writeMicroseconds(yawChannel);
-    servoGear.writeMicroseconds(3000 - yawChannel);
+    //servoRudder.writeMicroseconds(yawChannel);
+    //servoGear.writeMicroseconds(3000 - yawChannel);
+    ServoWriteMicroseconds(servoRudder, yawChannel);
+    ServoWriteMicroseconds(servoGear, 3000-yawChannel);
   }
 }
 
 // Manual Control
 void manualFlightControl()
 {
-  servoAileron.writeMicroseconds(rollChannel);
-  servoElevator.writeMicroseconds(pitchChannel);
-  servoRudder.writeMicroseconds(yawChannel);
-  servoGear.writeMicroseconds(3000 - yawChannel);
+  //servoAileron.writeMicroseconds(rollChannel);
+  //servoElevator.writeMicroseconds(pitchChannel);
+  //servoRudder.writeMicroseconds(yawChannel);
+  //servoGear.writeMicroseconds(3000 - yawChannel);
+
+ServoWriteMicroseconds(servoAileron, rollChannel);
+ServoWriteMicroseconds(servoElevator, pitchChannel);
+ServoWriteMicroseconds(servoRudder, yawChannel);
+ServoWriteMicroseconds(servoGear, 3000 - yawChannel);
+
 }
 
 #ifdef USE_CPPM

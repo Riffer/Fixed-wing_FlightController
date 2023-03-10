@@ -11,6 +11,9 @@
 
 #define MPU_ADDRESS 0x68
 
+#define ServoWrite(servo, degree) servo.write(degree)
+#define ServoWriteMicroseconds(servo, ms) servo.writeMicroseconds(ms)
+
 // simple utility routine:
 inline double mapf(double val, double in_min, double in_max, double out_min, double out_max)
 {
