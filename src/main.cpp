@@ -43,7 +43,8 @@ THE SOFTWARE.
 
 #ifdef USE_CPPM
 #include <jm_CPPM.h>
-#include "main.h" // also contains FakeServo class
+#include "main.h" 
+#include "fakeservo.h" // thin fake servo class
 #else
 #include <Servo.h>
 #endif
