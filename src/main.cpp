@@ -550,13 +550,15 @@ void relativeLeveling()
   {
     //servoAileron.write(rollSensor); // value from 0 to 180
     ServoWrite(servoAileron, rollSensor);
+    ServoWrite(servoGear, 180 - rollSensor); // inverted value for opposite one
   }
   else
   {
     //servoAileron.writeMicroseconds(rollChannel); // value from 1000 to 2000
     ServoWriteMicroseconds(servoAileron, rollChannel);
+    ServoWriteMicroseconds(servoGear, 3000 - rollChannel);
   }
-  
+
   if((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
   {
     //servoElevator.write(pitchSensor);
@@ -572,13 +574,14 @@ void relativeLeveling()
   {
     //servoRudder.write(yawSensor);
     ServoWrite(servoRudder, yawSensor);
+    //ServoWrite(servoGear, 180 - yawSensor); // interted value
   }
   else
   {
     //servoRudder.writeMicroseconds(yawChannel);
     //servoGear.writeMicroseconds(3000 - yawChannel);
     ServoWriteMicroseconds(servoRudder, yawChannel);
-    ServoWriteMicroseconds(servoGear, 3000 - yawChannel);
+    //ServoWriteMicroseconds(servoGear, 3000 - yawChannel);
 
   }
 }
@@ -590,11 +593,13 @@ void pidLeveling()
   {
     //servoAileron.write(rollPidFiltered);
     ServoWrite(servoAileron, rollPidFiltered);
+    ServoWrite(servoGear, 180 - rollPidFiltered);
   }
   else
   {
     //servoAileron.writeMicroseconds(rollChannel);
     ServoWriteMicroseconds(servoAileron, rollChannel);
+    ServoWriteMicroseconds(servoGear, 3000 - rollChannel);
   }
   
   if((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
@@ -618,7 +623,7 @@ void pidLeveling()
     //servoRudder.writeMicroseconds(yawChannel);
     //servoGear.writeMicroseconds(3000 - yawChannel);
     ServoWriteMicroseconds(servoRudder, yawChannel);
-    ServoWriteMicroseconds(servoGear, 3000-yawChannel);
+    //ServoWriteMicroseconds(servoGear, 3000-yawChannel);
   }
 }
 
@@ -631,9 +636,9 @@ void manualFlightControl()
   //servoGear.writeMicroseconds(3000 - yawChannel);
 
 ServoWriteMicroseconds(servoAileron, rollChannel);
+ServoWriteMicroseconds(servoGear, 3000 - rollChannel);
 ServoWriteMicroseconds(servoElevator, pitchChannel);
 ServoWriteMicroseconds(servoRudder, yawChannel);
-ServoWriteMicroseconds(servoGear, 3000 - yawChannel);
 
 }
 
@@ -742,8 +747,8 @@ while (micros() - loop_start_time < 4000)
     PORTD |= B11110000;
     unsigned long timer_channel_1 = servoAileron.readMicroseconds() + loop_start_time;
     unsigned long timer_channel_2 = servoElevator.readMicroseconds() + loop_start_time;
-    unsigned long timer_channel_3 = servoRudder.readMicroseconds() + loop_start_time;
-    unsigned long timer_channel_4 = servoGear.readMicroseconds() + loop_start_time;
+    unsigned long timer_channel_3 = servoGear.readMicroseconds() + loop_start_time;
+    unsigned long timer_channel_4 = servoRudder.readMicroseconds() + loop_start_time;
 
     // PWM out in a loop - initally set high for all 4 channels and look until all 4 channels gone by
     byte cnt = 0;
