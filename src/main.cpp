@@ -259,21 +259,11 @@ void computePID(Pid *target, float input, int limitMin, int limitMax)
     float dInput = input - target->lastInput;
 
     target->total += KI * error;
-
-    if (target->total > limitMax)
-      target->total = limitMax;
-    else if (target->total < limitMin)
-      target->total = limitMin;
+    target->total = constrain(target->total, limitMin, limitMax);
 
     float output = KP * error;
     output += target->total - KD * dInput;
-
-    if (output > limitMax)
-      output = limitMax;
-    else if (output < limitMin)
-      output = limitMin;
-
-    target->output = output;
+    target->output = constrain(output, limitMax, limitMax);
 
     target->lastInput = input;
     target->lastTime = now;
