@@ -391,20 +391,9 @@ void setAutoYPR()
   rollSensor = 90 - rollSensor;
 
   // Limits the angle
-  if(yawSensor > 180)
-    yawSensor = 180;
-  else if(yawSensor < 0)
-    yawSensor = 0;
-
-  if(pitchSensor > 180)
-    pitchSensor = 180;
-  else if(pitchSensor < 0)
-    pitchSensor = 0;
-
-  if(rollSensor > 180)
-    rollSensor = 180;
-  else if(rollSensor < 0)
-    rollSensor = 0;
+  yawSensor = constrain(yawSensor, 0, 180);
+  pitchSensor = constrain(pitchSensor, 0, 180);
+  rollSensor = constrain(rollSensor, 0, 180);
 }
 
 // Set value for PID Control mode
@@ -426,20 +415,9 @@ void setAutoPID()
   pitchPidFiltered = 90 + pitchPID.output;
 
   // Limits the angle
-  if(yawPidFiltered > 180)
-    yawPidFiltered = 180;
-  else if(yawPidFiltered < 0)
-    yawPidFiltered = 0;
-
-  if(rollPidFiltered > 180)
-    rollPidFiltered = 180;
-  else if(rollPidFiltered < 0)
-    rollPidFiltered = 0;
-
-  if(pitchPidFiltered > 180)
-    pitchPidFiltered = 180;
-  else if(pitchPidFiltered < 0)
-    pitchPidFiltered = 0;
+  yawPidFiltered = constrain(yawPidFiltered, 0, 180);
+  rollPidFiltered = constrain(rollPidFiltered, 0, 180);
+  pitchPidFiltered = constrain(pitchPidFiltered, 0, 180);
 }
 
 // Relatvie Level Control
