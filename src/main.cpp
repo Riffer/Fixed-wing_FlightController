@@ -47,7 +47,7 @@ THE SOFTWARE.
 #define MPU6050_GYRO_XOUT_H     0x43
 #define MPU6050_ACCEL_XOUT_H    0x3B
 #define INTERRUPT_PIN           2               // use pin 2 on Arduino Uno
-#define CALLIBRATE_DPM_OFFSET   6
+#define CALIBRATE_DPM_OFFSET   6
 #define MILLI_SEC               1000
 #define FS_SEL_0_GYRO           131.0
 
@@ -65,9 +65,9 @@ THE SOFTWARE.
 #define CENTER_OF_SERVO 90
 
 #define DEADZONE 50
-#define AILERON_CHANNEL_OFFSET 1504
-#define ELEVATOR_CHANNEL_OFFSET 1464
-#define YAW_CHANNEL_OFFSET 1500
+#define AILERON_CHANNEL_OFFSET PWM_MID
+#define ELEVATOR_CHANNEL_OFFSET PWM_MID
+#define YAW_CHANNEL_OFFSET PWM_MID
 
 #define FLIGHT_MODE_0 PWM_MAX
 #define FLIGHT_MODE_1 PWM_MID
@@ -78,10 +78,9 @@ const float DEGREE_PER_PI = 180 / M_PI;
 Simple_MPU6050 mpu;
 
 // MPU control/status vars
-bool dmpReady = false;          // set true if DMP init was successful
 uint8_t mpuIntStatus;           // holds actual interrupt status byte from MPU
-uint8_t devStatus;              // return status after each device operation (0 = success, !0 = error)
-uint16_t packetSize;            // expected DMP packet size (default is 42 bytes)
+uint8_t devStatus = 0;              // return status after each device operation (0 = success, !0 = error)
+//uint16_t packetSize;            // expected DMP packet size (default is 42 bytes)
 uint16_t fifoCount;             // count of all bytes currently in FIFO
 uint8_t fifoBuffer[64];         // FIFO storage buffer
 
@@ -114,7 +113,7 @@ Pid rollPID, pitchPID, yawPID;
 
 
 void initMPU6050();
-void verifyConnection();
+bool verifyConnection();
 void setGyroAccOffset();
 void calibrateDMP();
 void initServo();
@@ -140,24 +139,17 @@ void setup()
 
   CPPM.begin(); // setup CPPM - will be called in loop
 
-  initMPU6050();                                  // Initialize MPU6050 for I2C
-
-//  ms5611.begin();
-//  referencePressure = ms5611.readPressure();
-//  Serial.println(ms5611.getOversampling());
-  
-  verifyConnection();                             // Veritfy connection and wait for start
+  //verifyConnection(); // Verify connection and wait for start
   Serial.println(F("Initializing DMP..."));
-  // devStatus = mpu.dmpInitialize();                // Load and configure the DMP
-  mpu.load_DMP_Image();                 // Load and configure the DMP
-  devStatus = 0;
-  setGyroAccOffset();                             // Supply your own gyro offsets here, scaled for min sensitivity
-  //calibrateDMP();                                 // Calibrate DMP
+  initMPU6050();      // Initialize MPU6050 for I2C
+  setGyroAccOffset(); // Supply your own gyro offsets here, scaled for min sensitivity
 
+  //  ms5611.begin();
+  //  referencePressure = ms5611.readPressure();
+  //  Serial.println(ms5611.getOversampling());
+  
   initServo();                              
   initPID();
-
-  pTime = millis();                               // Initialize dt
 }
 
 void loop()
@@ -174,7 +166,12 @@ void loop()
   case 0:   //Manual Mode
     manualFlightControl();
     break;
-  
+
+  default: // case 1:   //Relative Control Mode
+    setAutoYPR();
+    relativeLeveling();
+    break;
+
   case 2:   //PID Control Mode
     yawPID.setpoint = 0;
     pitchPID.setpoint = 0;
@@ -183,10 +180,6 @@ void loop()
     pidLeveling();
     break;
 
-  default: // case 1:   //Relative Control Mode
-    setAutoYPR();
-    relativeLeveling();
-    break;
   }
   adjustServos();
   printYPRToSerial();
@@ -198,18 +191,20 @@ void loop()
 
 void initMPU6050()
 {
-  Serial.println(F("Initializing I2C devices..."));
+  Serial.println(F("Initializing mpu..."));
   mpu.begin();
   mpu.CalibrateMPU(); // Calibrates the MPU.
   mpu.load_DMP_Image();
   mpu.on_FIFO(getDmpYPR);
 }
 
-void verifyConnection()               
+bool verifyConnection()               
 {
+  bool test = mpu.TestConnection();
   //Verify connection
   Serial.println(F("Testing device connections...\nMPU6050 connection "));
-  Serial.println(mpu.TestConnection() ? F("successful") : F("failed"));
+  Serial.println(test ? F("successful") : F("failed"));
+  return test;
 } 
 
 void setGyroAccOffset()             
@@ -220,24 +215,12 @@ void setGyroAccOffset()
 
 void calibrateDMP()
 {
-  // The code from "MPU6050_DMP6_using_DMP_V6.12.ino" by Jeff Rowberg <jeff@rowberg.net>
   if (devStatus == 0)
   {
     // Calibration Time: generate offsets and calibrate MPU6050
-    mpu.CalibrateAccel(CALLIBRATE_DPM_OFFSET);
-    mpu.CalibrateGyro(CALLIBRATE_DPM_OFFSET);
+    mpu.CalibrateAccel(CALIBRATE_DPM_OFFSET);
+    mpu.CalibrateGyro(CALIBRATE_DPM_OFFSET);
     mpu.PrintActiveOffsets();
-
-    // Enable Arduino interrupt detection
-    Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
-    Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
-    Serial.println(F(")..."));
-    
-    // Set our DMP Ready flag so the main loop() function knows it's okay to use it
-    dmpReady = true;
-
-    // Get expected DMP packet size for later comparison
-    packetSize = mpu.packet_length;
   }
   else
   {
@@ -343,7 +326,7 @@ void getChannelInput()
 void getDmpYPR(int16_t *gyro, int16_t *accel, int32_t *quat)
 {
   float dt, cTime;
-  static float pTime; // Timer for Gyro Z
+  static float pTime = millis(); // Timer for Gyro Z
 
   mpu.GetQuaternion(&q, quat);
   mpu.GetGravity(&gravity, &q);
@@ -425,41 +408,31 @@ void relativeLeveling()
 {
   if((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
-    //servoAileron.write(rollSensor); // value from 0 to 180
     ServoWrite(servoAileron, rollSensor);
     ServoWrite(servoAileron2, 180 - rollSensor); // inverted value for opposite one
   }
   else
   {
-    //servoAileron.writeMicroseconds(rollChannel); // value from 1000 to 2000
     ServoWriteMicroseconds(servoAileron, rollChannel);
     ServoWriteMicroseconds(servoAileron2, 3000 - rollChannel);
   }
 
   if((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
   {
-    //servoElevator.write(pitchSensor);
     ServoWrite(servoElevator, pitchSensor);
   }
   else
   {
-    //servoElevator.writeMicroseconds(pitchChannel);
     ServoWriteMicroseconds(servoElevator, pitchChannel);
   }
   
   if((yawChannel > YAW_CHANNEL_OFFSET - DEADZONE) && (yawChannel < YAW_CHANNEL_OFFSET + DEADZONE))
   {
-    //servoRudder.write(yawSensor);
     ServoWrite(servoRudder, yawSensor);
-    //ServoWrite(servoAileron2, 180 - yawSensor); // interted value
   }
   else
   {
-    //servoRudder.writeMicroseconds(yawChannel);
-    //servoAileron2.writeMicroseconds(3000 - yawChannel);
     ServoWriteMicroseconds(servoRudder, yawChannel);
-    //ServoWriteMicroseconds(servoAileron2, 3000 - yawChannel);
-
   }
 }
 
