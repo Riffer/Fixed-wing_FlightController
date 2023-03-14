@@ -169,6 +169,11 @@ void adjustServos();
 
 void setup()
 {
+  Serial.begin(115200); // Initialize serial communication
+  while (!Serial)
+    delay(30);
+  ; // Wait for Leonardo enumeration, others continue immediately
+
 #ifdef USE_CPPM
   CPPM.begin(); // setup CPPM - will be called in loop
 #else
@@ -237,17 +242,6 @@ void loop()
 
 void initMPU6050()
 {
-  // join I2C bus (I2Cdev library doesn't do this automatically)
-  #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-    Wire.begin();
-    Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
-  #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
-    Fastwire::setup(400, true);
-  #endif
-
-  Serial.begin(115200);                           // Initialize serial communication
-  while(!Serial);                                 // Wait for Leonardo enumeration, others continue immediately
-
   Serial.println(F("Initializing I2C devices..."));
   mpu.begin();
   mpu.CalibrateMPU(); // Calibrates the MPU.
