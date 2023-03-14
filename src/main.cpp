@@ -34,7 +34,7 @@ THE SOFTWARE.
 #include <Arduino.h>
 #include <Wire.h>
 #include <math.h>
-#include <MS5611.h>
+//#include <MS5611.h>
 #include <Simple_Wire.h>
 #include <Simple_MPU6050.h>
 #include <jm_CPPM.h>
@@ -425,50 +425,37 @@ void pidLeveling()
 {
   if ((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
-    // servoAileron.write(rollPidFiltered);
     ServoWrite(servoAileron, rollPidFiltered);
     ServoWrite(servoAileron2, 180 - rollPidFiltered);
   }
   else
   {
-    // servoAileron.writeMicroseconds(rollChannel);
     ServoWriteMicroseconds(servoAileron, rollChannel);
     ServoWriteMicroseconds(servoAileron2, 3000 - rollChannel);
   }
 
   if ((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
   {
-    // servoElevator.write(pitchPidFiltered);
     ServoWrite(servoElevator, pitchPidFiltered);
   }
   else
   {
-    // servoElevator.writeMicroseconds(pitchChannel);
     ServoWriteMicroseconds(servoElevator, pitchChannel);
   }
 
   if ((yawChannel > YAW_CHANNEL_OFFSET - DEADZONE) && (yawChannel < YAW_CHANNEL_OFFSET + DEADZONE))
   {
-    // servoRudder.write(yawPidFiltered);
     ServoWrite(servoRudder, yawPidFiltered);
   }
   else
   {
-    // servoRudder.writeMicroseconds(yawChannel);
-    // servoAileron2.writeMicroseconds(3000 - yawChannel);
     ServoWriteMicroseconds(servoRudder, yawChannel);
-    // ServoWriteMicroseconds(servoAileron2, 3000-yawChannel);
   }
 }
 
 // Manual Control
 void manualFlightControl()
 {
-  // servoAileron.writeMicroseconds(rollChannel);
-  // servoElevator.writeMicroseconds(pitchChannel);
-  // servoRudder.writeMicroseconds(yawChannel);
-  // servoAileron2.writeMicroseconds(3000 - yawChannel);
-
   ServoWriteMicroseconds(servoAileron, rollChannel);
   ServoWriteMicroseconds(servoAileron2, 3000 - rollChannel);
   ServoWriteMicroseconds(servoElevator, pitchChannel);
