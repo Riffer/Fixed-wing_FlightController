@@ -387,7 +387,7 @@ void computePID(Pid *target,float input, int limitMin, int limitMax)
 
 #ifdef USE_CPPM
 // Setting Flight Control mode
-// simplified version from ChatGPT
+// simplified version from ChatGPT using abs()
 void getSystemSignal()
 {
   if (abs(knobChannel - FLIGHT_MODE_0) <= DEADZONE) // prüfe, ob knobChannel in der Nähe von FLIGHT_MODE_0 liegt
