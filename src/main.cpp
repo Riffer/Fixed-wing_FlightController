@@ -181,7 +181,6 @@ void setup()
 //  Serial.println(ms5611.getOversampling());
   
   verifyConnection();                             // Veritfy connection and wait for start
-  //while(true) delay(5000);
   Serial.println(F("Initializing DMP..."));
   devStatus = mpu.dmpInitialize();                // Load and configure the DMP
   setGyroAccOffset();                             // Supply your own gyro offsets here, scaled for min sensitivity
@@ -255,9 +254,8 @@ void initMPU6050()
 void verifyConnection()               
 {
   //Verify connection
-  Serial.println(F("Testing device connections..."));
-  Serial.println(mpu.getDeviceID());
-  Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+  Serial.println(F("Testing device connections...\nMPU6050 connection "));
+  Serial.println(mpu.testConnection() ? F("successful") : F("failed"));
 }
 
 void setGyroAccOffset()             
