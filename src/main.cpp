@@ -214,11 +214,6 @@ void loop()
     manualFlightControl();
     break;
   
-  case 1:   //Relative Control Mode
-    setAutoYPR();
-    relativeLeveling();
-    break;
-
   case 2:   //PID Control Mode
     yawPID.setpoint = 0;
     pitchPID.setpoint = 0;
@@ -227,7 +222,7 @@ void loop()
     pidLeveling();
     break;
 
-  default:
+  default: // case 1:   //Relative Control Mode
     setAutoYPR();
     relativeLeveling();
     break;
