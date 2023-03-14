@@ -34,9 +34,11 @@ THE SOFTWARE.
 #include <Arduino.h>
 #include <Wire.h>
 #include <math.h>
-#include <MPU6050_6Axis_MotionApps612.h>
+//#include <MPU6050_6Axis_MotionApps612.h>
 #include <MS5611.h>
-#include <I2Cdev.h>
+//#include <I2Cdev.h>
+#include <Simple_Wire.h>
+#include <Simple_MPU6050.h>
 
 
 #define USE_CPPM
@@ -82,13 +84,14 @@ THE SOFTWARE.
 #define ELEVATOR_CHANNEL_OFFSET 1464
 #define YAW_CHANNEL_OFFSET 1500
 
-#define FLIGHT_MODE_0 1900
-#define FLIGHT_MODE_1 1500
-#define FLIGHT_MODE_2 1100
+#define FLIGHT_MODE_0 PWM_MAX
+#define FLIGHT_MODE_1 PWM_MID
+#define FLIGHT_MODE_2 PWM_MIN
 
 const float DEGREE_PER_PI = 180 / M_PI; 
 
-MPU6050 mpu;
+//MPU6050 mpu;
+Simple_MPU6050 mpu;
 MS5611 ms5611;
 
 // MPU control/status vars
@@ -138,8 +141,10 @@ typedef struct Pid                                              // For PID Contr
 
 Pid rollPID, pitchPID, yawPID;                              
 
-volatile bool mpuInterrupt = false;             // Indicates whether MPU interrupt pin has gone high
-void dmpDataReady() {mpuInterrupt = true;}
+//volatile bool mpuInterrupt = false;             // Indicates whether MPU interrupt pin has gone high
+void dmpDataReady() {
+  //mpuInterrupt = true;
+  }
 
 void initMPU6050();
 void verifyConnection();
@@ -148,7 +153,7 @@ void calibrateDMP();
 void initServo();
 void initPID();
 void getChannelInput();
-void getDmpYPR();
+void getDmpYPR(int16_t *gyro, int16_t *accel, int32_t *quat);
 void getSystemSignal();
 void manualFlightControl();
 void setAutoYPR();
@@ -164,6 +169,11 @@ void adjustServos();
 
 void setup()
 {
+  Serial.begin(115200); // Initialize serial communication
+  while (!Serial)
+    delay(30);
+  ; // Wait for Leonardo enumeration, others continue immediately
+
 #ifdef USE_CPPM
   CPPM.begin(); // setup CPPM - will be called in loop
 #else
@@ -181,11 +191,12 @@ void setup()
 //  Serial.println(ms5611.getOversampling());
   
   verifyConnection();                             // Veritfy connection and wait for start
-  //while(true) delay(5000);
   Serial.println(F("Initializing DMP..."));
-  devStatus = mpu.dmpInitialize();                // Load and configure the DMP
+  // devStatus = mpu.dmpInitialize();                // Load and configure the DMP
+  mpu.load_DMP_Image();                 // Load and configure the DMP
+  devStatus = 0;
   setGyroAccOffset();                             // Supply your own gyro offsets here, scaled for min sensitivity
-  calibrateDMP();                                 // Calibrate DMP
+  //calibrateDMP();                                 // Calibrate DMP
 
   initServo();                              
   initPID();
@@ -198,9 +209,9 @@ void loop()
   /*-------------Using DMP Preset------------*/
   getChannelInput();
   //getAltitude();
-  getDmpYPR();                                    // Get YPR data by MPU6050 exemple code
-  readGyroData();
-
+  //getDmpYPR();                                    // loop call replaced by "mpu.onFifo()"
+  mpu.dmp_read_fifo(false);
+ 
   getSystemSignal();
   switch (systemStatus)
   {
@@ -208,11 +219,6 @@ void loop()
     manualFlightControl();
     break;
   
-  case 1:   //Relative Control Mode
-    setAutoYPR();
-    relativeLeveling();
-    break;
-
   case 2:   //PID Control Mode
     yawPID.setpoint = 0;
     pitchPID.setpoint = 0;
@@ -221,7 +227,7 @@ void loop()
     pidLeveling();
     break;
 
-  default:
+  default: // case 1:   //Relative Control Mode
     setAutoYPR();
     relativeLeveling();
     break;
@@ -236,39 +242,24 @@ void loop()
 
 void initMPU6050()
 {
-  // join I2C bus (I2Cdev library doesn't do this automatically)
-  #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-    Wire.begin();
-    Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
-  #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
-    Fastwire::setup(400, true);
-  #endif
-
-  Serial.begin(115200);                           // Initialize serial communication
-  while(!Serial);                                 // Wait for Leonardo enumeration, others continue immediately
-
   Serial.println(F("Initializing I2C devices..."));
-  mpu.initialize();                                           //Initialize Gyro and Accel     
-  //pinMode(INTERRUPT_PIN, INPUT);                              //Set Pin2 to Input for Interrupt
+  mpu.begin();
+  mpu.CalibrateMPU(); // Calibrates the MPU.
+  mpu.load_DMP_Image();
+  mpu.on_FIFO(getDmpYPR);
 }
 
 void verifyConnection()               
 {
   //Verify connection
-  Serial.println(F("Testing device connections..."));
-  Serial.println(mpu.getDeviceID());
-  Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
-}
+  Serial.println(F("Testing device connections...\nMPU6050 connection "));
+  Serial.println(mpu.TestConnection() ? F("successful") : F("failed"));
+} 
 
 void setGyroAccOffset()             
 {
   // Supply your own gyro offsets here, scaled for min sensitivity
-  mpu.setXGyroOffset(GYRO_OFFSET_X);
-  mpu.setYGyroOffset(GYRO_OFFSET_Y);
-  mpu.setZGyroOffset(GYRO_OFFSET_Z);
-  mpu.setXAccelOffset(ACC_OFFSET_X);
-  mpu.setYAccelOffset(ACC_OFFSET_Y);
-  mpu.setZAccelOffset(ACC_OFFSET_Z);
+  mpu.setOffset(ACC_OFFSET_X, ACC_OFFSET_Y, ACC_OFFSET_Z, GYRO_OFFSET_X, GYRO_OFFSET_Y, GYRO_OFFSET_Z);
 }
 
 void calibrateDMP()
@@ -283,21 +274,21 @@ void calibrateDMP()
 
     // Turn on the DMP, now that it's ready
     Serial.println(F("Enabling DMP..."));
-    mpu.setDMPEnabled(true);
+    //mpu.setDMPEnabled(true);
 
     // Enable Arduino interrupt detection
     Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
     Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
     Serial.println(F(")..."));
     //attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
-    mpuIntStatus = mpu.getIntStatus();
+    //mpuIntStatus = mpu.getIntStatus();
 
     // Set our DMP Ready flag so the main loop() function knows it's okay to use it
     Serial.println(F("DMP ready! Waiting for first interrupt..."));
     dmpReady = true;
 
     // Get expected DMP packet size for later comparison
-    packetSize = mpu.dmpGetFIFOPacketSize();
+    packetSize = mpu.packet_length;
   }
   else
   {
@@ -389,7 +380,7 @@ void computePID(Pid *target,float input, int limitMin, int limitMax)
 
 #ifdef USE_CPPM
 // Setting Flight Control mode
-// simplified version from ChatGPT
+// simplified version from ChatGPT using abs()
 void getSystemSignal()
 {
   if (abs(knobChannel - FLIGHT_MODE_0) <= DEADZONE) // prüfe, ob knobChannel in der Nähe von FLIGHT_MODE_0 liegt
@@ -432,20 +423,27 @@ void getChannelInput()
   rollChannel = pwmValue[2];  // channel 3 = pin 12 => roll
   yawChannel = pwmValue[3];   // channel 4 = pin 13 => yaw
 }
-#endif 
+#endif
 
-// Get YPR from Dmp
-void getDmpYPR()
+void getDmpYPR(int16_t *gyro, int16_t *accel, int32_t *quat)
 {
-  // The code from "MPU6050_DMP6_using_DMP_V6.12.ino" by Jeff Rowberg <jeff@rowberg.net>
-  // if programming failed, don't try to do anything
-  if (!dmpReady) return;                  
-  if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
-  {
-      mpu.dmpGetQuaternion(&q, fifoBuffer);
-      mpu.dmpGetGravity(&gravity, &q);
-      mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-  }
+  //Quaternion q;
+  //VectorFloat gravity;
+  //float ypr[3] = {0, 0, 0};
+  //float xyz[3] = {0, 0, 0};
+  
+  mpu.GetQuaternion(&q, quat);
+  mpu.GetGravity(&gravity, &q);
+  mpu.GetYawPitchRoll(ypr, &q, &gravity);
+  //mpu.ConvertToDegrees(ypr, xyz);
+
+  // Calculate dt
+  cTime = millis();
+  dt = (cTime - pTime) / MILLI_SEC;
+  pTime = cTime;
+
+  gyroZ = (gyro[2] / FS_SEL_0_GYRO) * dt; //TODO: check that is really Z?!
+  gyroFiltered = 0.98 * gyroFiltered + 0.02 * gyroZ;
 }
 
 // Get Alititude from ms5611, This function is currently not use.
@@ -456,19 +454,6 @@ void getDmpYPR()
 //   relativeAltitude = ms5611.getAltitude(realPressure, referencePressure);
 // }
 
-// Read Gyro Z from Dmp
-void readGyroData()
-{
-  mpu.dmpGetGyro(&gy, fifoBuffer);
-
-  // Calculate dt
-  cTime = millis();
-  dt = (cTime - pTime) / MILLI_SEC;
-  pTime = cTime;
-
-  gyroZ = (gy.z / FS_SEL_0_GYRO) * dt;
-  gyroFiltered = 0.98*gyroFiltered + 0.02*gyroZ;
-}
 
 // Set value for Relative Control
 void setAutoYPR()
@@ -653,8 +638,6 @@ if (millis() - lastTime < 1000)
     return;
 
 lastTime = millis();
-Serial.print(servoAileron.readMicroseconds());
-
 // Print DMP Data
 Serial.print("status: ");
 Serial.print(systemStatus);
