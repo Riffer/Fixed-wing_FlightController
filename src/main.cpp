@@ -105,9 +105,9 @@ float ypr[3];                   // [yaw, pitch, roll]   yaw/pitch/roll container
 
 int systemStatus = 0;
 #ifdef USE_CPPM
-  FakeServo servoRudder, servoAileron, servoElevator, servoGear;      // Servo Motor
+  FakeServo servoRudder, servoAileron, servoElevator, servoAileron2;      // Servo Motor
 #else
-  Servo servoRudder, servoAileron, servoElevator, servoGear;      // Servo Motor
+  Servo servoRudder, servoAileron, servoElevator, servoAileron2;      // Servo Motor
 #endif
 float rollSensor, pitchSensor, yawSensor;                       // Data of Axis from MPU6050
 float rollChannel, pitchChannel, yawChannel;                    // Data of Axis from Receiver
@@ -319,12 +319,12 @@ void initServo()
 
   servoAileron.attach(4); // using FakeServo sets pinMode internall
   servoElevator.attach(5);
-  servoGear.attach(6);
+  servoAileron2.attach(6);
   servoRudder.attach(7);
 
   servoAileron.write(90); 
   servoElevator.write(90);
-  servoGear.write(90);
+  servoAileron2.write(90);
   servoRudder.write(90);
 }
 #else
@@ -333,12 +333,12 @@ void initServo()
   servoAileron.attach(5);
   servoElevator.attach(6);
   servoRudder.attach(7);
-  servoGear.attach(8);
+  servoAileron2.attach(8);
 
   servoAileron.write(90);
   servoElevator.write(90);
   servoRudder.write(90);
-  servoGear.write(90);
+  servoAileron2.write(90);
 }
 #endif
 
@@ -389,13 +389,14 @@ void computePID(Pid *target,float input, int limitMin, int limitMax)
 
 #ifdef USE_CPPM
 // Setting Flight Control mode
+// simplified version from ChatGPT
 void getSystemSignal()
 {
-  if((knobChannel > FLIGHT_MODE_0 - DEADZONE) && (knobChannel < FLIGHT_MODE_0 + DEADZONE)) // 1900-50 to 1900+50 => Flight Mode 0
+  if (abs(knobChannel - FLIGHT_MODE_0) <= DEADZONE) // prüfe, ob knobChannel in der Nähe von FLIGHT_MODE_0 liegt
     systemStatus = 0;
-  else if((knobChannel > FLIGHT_MODE_1 - DEADZONE) && (knobChannel < FLIGHT_MODE_1 + DEADZONE))  // 1500-50 to 1500+50 => Flight Mode 1
+  else if (abs(knobChannel - FLIGHT_MODE_1) <= DEADZONE) // prüfe, ob knobChannel in der Nähe von FLIGHT_MODE_1 liegt
     systemStatus = 1;
-  else if((knobChannel > FLIGHT_MODE_2 - DEADZONE) && (knobChannel < FLIGHT_MODE_2 + DEADZONE)) // 1100-50 to 1100+50 => Flight Mode 2
+  else if (abs(knobChannel - FLIGHT_MODE_2) <= DEADZONE) // prüfe, ob knobChannel in der Nähe von FLIGHT_MODE_2 liegt
     systemStatus = 2;
 }
 
@@ -551,13 +552,13 @@ void relativeLeveling()
   {
     //servoAileron.write(rollSensor); // value from 0 to 180
     ServoWrite(servoAileron, rollSensor);
-    ServoWrite(servoGear, 180 - rollSensor); // inverted value for opposite one
+    ServoWrite(servoAileron2, 180 - rollSensor); // inverted value for opposite one
   }
   else
   {
     //servoAileron.writeMicroseconds(rollChannel); // value from 1000 to 2000
     ServoWriteMicroseconds(servoAileron, rollChannel);
-    ServoWriteMicroseconds(servoGear, 3000 - rollChannel);
+    ServoWriteMicroseconds(servoAileron2, 3000 - rollChannel);
   }
 
   if((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
@@ -575,14 +576,14 @@ void relativeLeveling()
   {
     //servoRudder.write(yawSensor);
     ServoWrite(servoRudder, yawSensor);
-    //ServoWrite(servoGear, 180 - yawSensor); // interted value
+    //ServoWrite(servoAileron2, 180 - yawSensor); // interted value
   }
   else
   {
     //servoRudder.writeMicroseconds(yawChannel);
-    //servoGear.writeMicroseconds(3000 - yawChannel);
+    //servoAileron2.writeMicroseconds(3000 - yawChannel);
     ServoWriteMicroseconds(servoRudder, yawChannel);
-    //ServoWriteMicroseconds(servoGear, 3000 - yawChannel);
+    //ServoWriteMicroseconds(servoAileron2, 3000 - yawChannel);
 
   }
 }
@@ -594,13 +595,13 @@ void pidLeveling()
   {
     //servoAileron.write(rollPidFiltered);
     ServoWrite(servoAileron, rollPidFiltered);
-    ServoWrite(servoGear, 180 - rollPidFiltered);
+    ServoWrite(servoAileron2, 180 - rollPidFiltered);
   }
   else
   {
     //servoAileron.writeMicroseconds(rollChannel);
     ServoWriteMicroseconds(servoAileron, rollChannel);
-    ServoWriteMicroseconds(servoGear, 3000 - rollChannel);
+    ServoWriteMicroseconds(servoAileron2, 3000 - rollChannel);
   }
   
   if((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
@@ -622,9 +623,9 @@ void pidLeveling()
   else
   {
     //servoRudder.writeMicroseconds(yawChannel);
-    //servoGear.writeMicroseconds(3000 - yawChannel);
+    //servoAileron2.writeMicroseconds(3000 - yawChannel);
     ServoWriteMicroseconds(servoRudder, yawChannel);
-    //ServoWriteMicroseconds(servoGear, 3000-yawChannel);
+    //ServoWriteMicroseconds(servoAileron2, 3000-yawChannel);
   }
 }
 
@@ -634,10 +635,10 @@ void manualFlightControl()
   //servoAileron.writeMicroseconds(rollChannel);
   //servoElevator.writeMicroseconds(pitchChannel);
   //servoRudder.writeMicroseconds(yawChannel);
-  //servoGear.writeMicroseconds(3000 - yawChannel);
+  //servoAileron2.writeMicroseconds(3000 - yawChannel);
 
 ServoWriteMicroseconds(servoAileron, rollChannel);
-ServoWriteMicroseconds(servoGear, 3000 - rollChannel);
+ServoWriteMicroseconds(servoAileron2, 3000 - rollChannel);
 ServoWriteMicroseconds(servoElevator, pitchChannel);
 ServoWriteMicroseconds(servoRudder, yawChannel);
 
@@ -748,7 +749,7 @@ while (micros() - loop_start_time < 4000)
     PORTD |= B11110000;
     unsigned long timer_channel_1 = servoAileron.readMicroseconds() + loop_start_time;
     unsigned long timer_channel_2 = servoElevator.readMicroseconds() + loop_start_time;
-    unsigned long timer_channel_3 = servoGear.readMicroseconds() + loop_start_time;
+    unsigned long timer_channel_3 = servoAileron2.readMicroseconds() + loop_start_time;
     unsigned long timer_channel_4 = servoRudder.readMicroseconds() + loop_start_time;
 
     // PWM out in a loop - initally set high for all 4 channels and look until all 4 channels gone by
