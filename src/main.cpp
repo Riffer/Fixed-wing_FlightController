@@ -84,9 +84,9 @@ THE SOFTWARE.
 #define ELEVATOR_CHANNEL_OFFSET 1464
 #define YAW_CHANNEL_OFFSET 1500
 
-#define FLIGHT_MODE_0 1900
-#define FLIGHT_MODE_1 1500
-#define FLIGHT_MODE_2 1100
+#define FLIGHT_MODE_0 PWM_MAX
+#define FLIGHT_MODE_1 PWM_MID
+#define FLIGHT_MODE_2 PWM_MIN
 
 const float DEGREE_PER_PI = 180 / M_PI; 
 
@@ -438,13 +438,15 @@ void getChannelInput()
 
 void getDmpYPR(int16_t *gyro, int16_t *accel, int32_t *quat)
 {
-  Quaternion q;
-  VectorFloat gravity;
-  float ypr[3] = {0, 0, 0};
-  float xyz[3] = {0, 0, 0};
+  //Quaternion q;
+  //VectorFloat gravity;
+  //float ypr[3] = {0, 0, 0};
+  //float xyz[3] = {0, 0, 0};
+  
   mpu.GetQuaternion(&q, quat);
   mpu.GetGravity(&gravity, &q);
   mpu.GetYawPitchRoll(ypr, &q, &gravity);
+  //mpu.ConvertToDegrees(ypr, xyz);
 
   // Calculate dt
   cTime = millis();
@@ -647,8 +649,6 @@ if (millis() - lastTime < 1000)
     return;
 
 lastTime = millis();
-Serial.print(servoAileron.readMicroseconds());
-
 // Print DMP Data
 Serial.print("status: ");
 Serial.print(systemStatus);
