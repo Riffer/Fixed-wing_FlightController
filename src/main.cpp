@@ -40,7 +40,7 @@ THE SOFTWARE.
 #include <jm_CPPM.h>
 
 #include "main.h"
-#include "fakeservo.h" // simple thin fake servo class
+#include "fakeservo.hpp" // simple thin fake servo class
 
 #define MPU6050_ADDR 0x68 // Address of MPU-6050
 #define MPU6050_PWR_MGMT_1 0x6B
@@ -227,6 +227,7 @@ void initServo()
   servoAileron.attach(4); // using FakeServo sets pinMode internall
   servoElevator.attach(5);
   servoAileron2.attach(6);
+  servoAileron2.inverted(false); // depends on the built in direction
   servoRudder.attach(7);
 
   servoAileron.write(90);
@@ -333,13 +334,13 @@ void setAutoYPR()
   rollSensor = ypr[2] * DEGREE_PER_PI;
 
   // Conversion angle overflowed
-  if ((rollSensor > 90 || rollSensor < -90) && (pitchSensor >= 0))
+  if (abs(rollSensor) > 90 && pitchSensor >= 0)
     pitchSensor = 180 - pitchSensor;
-  else if ((rollSensor > 90 || rollSensor < -90) && (pitchSensor < 0))
+  else if (abs(rollSensor) && pitchSensor < 0)
     pitchSensor = -(180 + pitchSensor);
-  else if ((pitchSensor > 90 || pitchSensor < -90) && (rollSensor >= 0))
+  else if (abs(pitchSensor) > 90 && rollSensor >= 0)
     rollSensor = 180 - rollSensor;
-  else if ((pitchSensor > 90 || pitchSensor < -90) && (rollSensor < 0))
+  else if (abs(pitchSensor) > 90 && rollSensor < 0)
     rollSensor = -(180 + rollSensor);
 
   // Conversion sensor angle to servo angle
@@ -383,12 +384,12 @@ void relativeLeveling()
   if ((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
     ServoWrite(servoAileron, rollSensor);
-    ServoWrite(servoAileron2, 180 - rollSensor); // inverted value for opposite one
+    ServoWrite(servoAileron2, rollSensor); // inverted value for opposite one
   }
   else
   {
     ServoWriteMicroseconds(servoAileron, rollChannel);
-    ServoWriteMicroseconds(servoAileron2, 3000 - rollChannel);
+    ServoWriteMicroseconds(servoAileron2, rollChannel);
   }
 
   if ((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
@@ -416,12 +417,12 @@ void pidLeveling()
   if ((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
     ServoWrite(servoAileron, rollPidFiltered);
-    ServoWrite(servoAileron2, 180 - rollPidFiltered);
+    ServoWrite(servoAileron2, rollPidFiltered);
   }
   else
   {
     ServoWriteMicroseconds(servoAileron, rollChannel);
-    ServoWriteMicroseconds(servoAileron2, 3000 - rollChannel);
+    ServoWriteMicroseconds(servoAileron2, rollChannel);
   }
 
   if ((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
@@ -447,7 +448,7 @@ void pidLeveling()
 void manualFlightControl()
 {
   ServoWriteMicroseconds(servoAileron, rollChannel);
-  ServoWriteMicroseconds(servoAileron2, 3000 - rollChannel);
+  ServoWriteMicroseconds(servoAileron2, rollChannel);
   ServoWriteMicroseconds(servoElevator, pitchChannel);
   ServoWriteMicroseconds(servoRudder, yawChannel);
 }
