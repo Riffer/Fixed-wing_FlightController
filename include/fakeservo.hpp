@@ -15,46 +15,54 @@
 #define PWM_MID 1500
 #endif
 
+#ifndef ANGLE_MIN
+#define ANGLE_MIN 0
+#endif
+
+#ifndef ANGLE_MAX
+#define ANGLE_MAX 180
+#endif
+
 // a thin mapping class to avoid using interrupts for servo at all (see adjustServos())
 class FakeServo
 {
 
 private:
- int _pin, _min, _max, _microSeconds;
- bool _inverted = false;
+  byte _pin, _min, _max;
+  int16_t _microSeconds;
+  bool _inverted = false;
 
- public:
- FakeServo(){};
- uint8_t attach(int pin)
- {
-   _pin = pin;
-   pinMode(_pin, OUTPUT);
-   return _pin;};                                          // attach the given pin to the next free channel, sets pinMode, returns channel number or 0 if failure
-  uint8_t attach(int pin, int min, int max) {_pin = pin; _min=min; _max = max; return _pin;}; // as above but also sets min and max values for writes. 
-  void detach();
+public:
+  FakeServo(){};
 
-  void inverted(bool inverted)
+  byte attach(byte pin, byte min = ANGLE_MIN, byte max = ANGLE_MAX, bool inverted = false)
   {
-   _inverted = inverted;
-  }
-
-  void write(int value)
-  {
-    value = constrain(value, 0, 180);
-    value = map(value, 0, 180, PWM_MIN, PWM_MAX);
-    writeMicroseconds(value);
+    _min = min;
+    _max = max;
+    _inverted = inverted;
+    _pin = pin;
+    pinMode(_pin, OUTPUT);
+    return _pin;
   }; 
-
-  void writeMicroseconds(int value)
+  void write(byte value)
   {
-    value = constrain(value, PWM_MIN, PWM_MAX);                             // ensure pulse width is valid
+    value = map(constrain(value, _min, _max), _min, _max, PWM_MIN, PWM_MAX);
+    writeMicroseconds(value);
+  };
+
+  void writeMicroseconds(int16_t value)
+  {
+    value = constrain(value, PWM_MIN, PWM_MAX); // ensure pulse width is valid
     if (_inverted)
-      value = PWM_MIN + PWM_MAX - value;                                    // invert if requested
-    _microSeconds = value;                                                  // convert to ticks after compensating for interrupt overhead - 12 Aug 2009
-  };                                                                        // Write pulse width in microseconds
-  int read() { return map(_microSeconds + 1, PWM_MIN, PWM_MAX, 0, 180); };  // returns current pulse width as an angle between 0 and 180 degrees
-  int readMicroseconds() { return _microSeconds; };                         // returns current pulse width in microseconds for this servo (was read_us() in first release)
-  bool attached();                                                          // return true if this servo is attached, otherwise false 
+      value = PWM_MIN + PWM_MAX - value;                                   // invert if requested
+    _microSeconds = value;                                                 // convert to ticks after compensating for interrupt overhead - 12 Aug 2009
+  };                                                                       // Write pulse width in microseconds
+  byte read() { return map(_microSeconds + 1, PWM_MIN, PWM_MAX, _min, _max); }; // returns current pulse width as an angle between 0 and 180 degrees
+  int16_t readMicroseconds() { return _microSeconds; };                    // returns current pulse width in microseconds for this servo (was read_us() in first release)
+
+  // only dummies
+  void detach();
+  bool attached(); // return true if this servo is attached, otherwise false
 };
 
-#endif 
+#endif

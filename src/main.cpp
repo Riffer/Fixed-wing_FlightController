@@ -227,7 +227,6 @@ void initServo()
   servoAileron.attach(4); // using FakeServo sets pinMode internall
   servoElevator.attach(5);
   servoAileron2.attach(6);
-  servoAileron2.inverted(false); // depends on the built in direction
   servoRudder.attach(7);
 
   servoAileron.write(90);
