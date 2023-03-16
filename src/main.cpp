@@ -224,7 +224,7 @@ void initServo()
 {
   serial_printlnF("setting DIGITAL PIN 4, 5, 6, 7 as OUTPUTS");
 
-  servoAileron.attach(4); // using FakeServo sets pinMode internall
+  servoAileron.attach(4); // FakeServo sets pinMode internal
   servoElevator.attach(5);
   servoAileron2.attach(6);
   servoRudder.attach(7);
@@ -238,9 +238,10 @@ void initServo()
 // Set PID dT
 void initPID()
 {
-  rollPID.lastTime = millis() - rollPID.sampleTime;
-  pitchPID.lastTime = millis() - pitchPID.sampleTime;
-  yawPID.lastTime = millis() - yawPID.sampleTime;
+  uint16_t now = millis();
+  rollPID.lastTime = now - rollPID.sampleTime;
+  pitchPID.lastTime = now - pitchPID.sampleTime;
+  yawPID.lastTime = now - yawPID.sampleTime;
 }
 
 /*==================================================================
