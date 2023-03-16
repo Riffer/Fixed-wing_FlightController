@@ -29,7 +29,7 @@ class FakeServo
 
 private:
   byte _pin, _min, _max;
-  int16_t _microSeconds;
+  uint16_t _microSeconds;
   bool _inverted = false;
 
 public:
@@ -50,7 +50,7 @@ public:
     writeMicroseconds(value);
   };
 
-  void writeMicroseconds(int16_t value)
+  void writeMicroseconds(uint16_t value)
   {
     value = constrain(value, PWM_MIN, PWM_MAX); // ensure pulse width is valid
     if (_inverted)
@@ -58,7 +58,7 @@ public:
     _microSeconds = value;                                                 // convert to ticks after compensating for interrupt overhead - 12 Aug 2009
   };                                                                       // Write pulse width in microseconds
   byte read() { return map(_microSeconds + 1, PWM_MIN, PWM_MAX, _min, _max); }; // returns current pulse width as an angle between 0 and 180 degrees
-  int16_t readMicroseconds() { return _microSeconds; };                    // returns current pulse width in microseconds for this servo (was read_us() in first release)
+  uint16_t readMicroseconds() { return _microSeconds; };                    // returns current pulse width in microseconds for this servo (was read_us() in first release)
 
   // only dummies
   void detach();
