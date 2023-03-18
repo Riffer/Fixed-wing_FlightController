@@ -352,7 +352,7 @@ void setAutoYPR()
   // Conversion angle overflowed
   if (abs(rollSensor) > 90 && pitchSensor >= 0)
     pitchSensor = 180 - pitchSensor;
-  else if (abs(rollSensor) && pitchSensor < 0)
+  else if (abs(rollSensor) > 90 && pitchSensor < 0)
     pitchSensor = -(180 + pitchSensor);
   else if (abs(pitchSensor) > 90 && rollSensor >= 0)
     rollSensor = 180 - rollSensor;
