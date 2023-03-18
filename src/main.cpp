@@ -42,14 +42,7 @@ THE SOFTWARE.
 
 #include "main.h"
 
-ServoTimer2 servoRudder, servoAileron, servoElevator, servoAileron2;
 
-Simple_MPU6050 mpu;
-
-RPY Sensor;  // Data of Axis from MPU6050
-RPY Channel; // Data of Axis from Receiver
-dRPY PIDFiltered; // Data of Axis from PID Function
-Pid rollPID, pitchPID, yawPID;
 
 // MS5611 ms5611;
 // long realPressure;                                            // Pressure value
@@ -267,19 +260,19 @@ void setAutoPID()
   Sensor.roll = ypr[2] * DEGREE_PER_PI;
 
   // PID Control
-  computePID(&rollPID, Sensor.roll, -90, 90);
-  computePID(&pitchPID, Sensor.pitch, -90, 90);
   computePID(&yawPID, Sensor.yaw, -90, 90);
+  computePID(&pitchPID, Sensor.pitch, -90, 90);
+  computePID(&rollPID, Sensor.roll, -90, 90);
 
   // Change to Servo Value
   PIDFiltered.yaw = 90 + yawPID.output;
-  PIDFiltered.roll = 90 - rollPID.output;
   PIDFiltered.pitch = 90 + pitchPID.output;
+  PIDFiltered.roll = 90 - rollPID.output;
 
   // Limits the angle
   PIDFiltered.yaw = constrain(PIDFiltered.yaw, 0, 180);
-  PIDFiltered.roll = constrain(PIDFiltered.roll, 0, 180);
   PIDFiltered.pitch = constrain(PIDFiltered.pitch, 0, 180);
+  PIDFiltered.roll = constrain(PIDFiltered.roll, 0, 180);
 }
 
 // Relative Level Control
@@ -288,7 +281,7 @@ void relativeLeveling()
   if ((Channel.roll > AILERON_CHANNEL_OFFSET - DEADZONE) && (Channel.roll < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
     ServoWrite(servoAileron, Sensor.roll);
-    ServoWrite(servoAileron2, Sensor.roll); // inverted value for opposite one
+    ServoWrite(servoAileron2, Sensor.roll); // inverted value for opposite one?
   }
   else
   {

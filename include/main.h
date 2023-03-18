@@ -91,6 +91,15 @@ typedef struct Pid // For PID Controll
 } Pid;
 
 
+ServoTimer2 servoRudder, servoAileron, servoElevator, servoAileron2;
+
+Simple_MPU6050 mpu;
+
+RPY Sensor;       // Data of Axis from MPU6050
+RPY Channel;      // Data of Axis from Receiver
+dRPY PIDFiltered; // Data of Axis from PID Function
+Pid rollPID, pitchPID, yawPID;
+
 #define DEBUG 1 //0 for turn off, 1 for turn on - this works function wise and the compiler optimizes if(0){} out
 
 
