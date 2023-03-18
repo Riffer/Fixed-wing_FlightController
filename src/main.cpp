@@ -499,6 +499,10 @@ void printYPRToSerial()
 //  // TODO: need to apply throttle
 //}
 
+/**
+ * @brief nice little servo pulsed without a need for hardware timer
+ * 
+ */
 void adjustServos()
 {
   static int loopCounter = 0;
