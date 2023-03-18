@@ -75,7 +75,7 @@ THE SOFTWARE.
 
 const float DEGREE_PER_PI = 180 / M_PI;
 
-#define ServoT2
+//#define ServoT2
 
 #ifndef ServoT2
 #define ServoWrite(servo, degree) servo.write(degree)
