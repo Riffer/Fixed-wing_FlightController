@@ -44,9 +44,9 @@ public:
     pinMode(_pin, OUTPUT);
     return _pin;
   }; 
-  void write(byte value)
+  void write(float value)
   {
-    value = map(constrain(value, _min, _max), _min, _max, PWM_MIN, PWM_MAX);
+    value = mapf(constrain(value, _min, _max), _min, _max, PWM_MIN, PWM_MAX);
     writeMicroseconds(value);
   };
 

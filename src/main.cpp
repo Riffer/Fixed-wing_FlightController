@@ -75,6 +75,17 @@ THE SOFTWARE.
 
 const float DEGREE_PER_PI = 180 / M_PI;
 
+#define ServoT2
+
+#ifndef ServoT2
+#define ServoWrite(servo, degree) servo.write(degree)
+#define ServoWriteMicroseconds(servo, ms) servo.writeMicroseconds(ms)
+#else
+#include <ServoTimer2.h>
+#define ServoWrite(servo, degree) servo.write(mapf(degree, 0, 180, 1000,2000))
+#define ServoWriteMicroseconds(servo, ms) servo.write(ms)
+#endif
+
 Simple_MPU6050 mpu;
 
 // MPU control/status vars
@@ -88,8 +99,13 @@ Quaternion q;        // [w, x, y, z]         quaternion container
 VectorFloat gravity; // [x, y, z]            gravity vector
 float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
-// int systemStatus = 0;
-FakeServo servoRudder, servoAileron, servoElevator, servoAileron2; // Servo Motor
+#ifndef ServoT2
+FakeServo
+#else
+ServoTimer2
+#endif
+    servoRudder, servoAileron, servoElevator, servoAileron2; 
+
 float rollSensor, pitchSensor, yawSensor;                          // Data of Axis from MPU6050
 float rollChannel, pitchChannel, yawChannel;                       // Data of Axis from Receiver
 double rollPidFiltered, pitchPidFiltered, yawPidFiltered;          // Data of Axis from PID Function
@@ -462,8 +478,24 @@ void printYPRToSerial()
 
   lastTime = millis();
   // Print DMP Data
-  Serial.print("status: ");
-  Serial.print(getSystemSignal());
+  String sStatus = "";
+  switch (getSystemSignal())
+  {
+    case 0: // Manual Mode
+      sStatus = "manual ";
+      break;
+
+    default: // case 1:   //Relative Control Mode
+      sStatus = "relative ";
+      break;
+
+    case 2: // PID Control Mode
+      sStatus = "PID ";
+      break;
+  }
+  
+  //Serial.print("status: ");
+  Serial.print(sStatus);
   Serial.print(" Yaw:");
   Serial.print(yawSensor);
   Serial.print(" Roll: ");
@@ -500,11 +532,12 @@ void printYPRToSerial()
 //}
 
 /**
- * @brief nice little servo pulsed without a need for hardware timer
+ * @brief nice little servo pulsed without a need for additional timer
  * 
  */
 void adjustServos()
 {
+  #ifndef ServoT2
   static int loopCounter = 0;
   static unsigned long loop_start_time = micros();
 
@@ -554,4 +587,5 @@ void adjustServos()
       }
     }
   }
+  #endif
 }
