@@ -8,25 +8,73 @@
 #define PWM_MIN 1000
 #define PWM_MID 1500
 
-#define MPU_ADDRESS 0x68
 
-/*
 template <typename T>
 T mapT(T val, T in_min, T in_max, T out_min, T out_max)
 {
   return (val - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
-*/
 
+#define CALIBRATE_DPM_OFFSET 6
+#define MILLI_SEC 1000
+#define FS_SEL_0_GYRO 131.0
 
-// simple utility routine:
-inline double mapf(double val, double in_min, double in_max, double out_min, double out_max)
+// Set Offset, scaled for min sensitivity
+#define GYRO_OFFSET_X 120
+#define GYRO_OFFSET_Y -22
+#define GYRO_OFFSET_Z -4
+#define ACC_OFFSET_X -2927
+#define ACC_OFFSET_Y -339
+#define ACC_OFFSET_Z 1836
+
+#define KP 1.0
+#define KI 0.2
+#define KD 1.0
+#define CENTER_OF_SERVO 90
+
+#define DEADZONE 50
+#define AILERON_CHANNEL_OFFSET PWM_MID
+#define ELEVATOR_CHANNEL_OFFSET PWM_MID
+#define YAW_CHANNEL_OFFSET PWM_MID
+
+#define FLIGHT_MODE_0 PWM_MAX
+#define FLIGHT_MODE_1 PWM_MID
+#define FLIGHT_MODE_2 PWM_MIN
+
+#define ServoWrite(servo, degree) servo.write(mapT((double)degree, (double)0, (double)CENTER_OF_SERVO * 2, (double)PWM_MIN, (double)PWM_MAX))
+#define ServoWriteMicroseconds(servo, ms) servo.write(ms)
+
+void initMPU6050();
+void initServo();
+void initPID();
+void copyChannelInput();
+void getDmpYPR(int16_t *gyro, int16_t *accel, int32_t *quat);
+int getSystemSignal();
+void manualFlightControl();
+void setAutoYPR();
+void relativeLeveling();
+void setAutoPID();
+void pidLeveling();
+void debugPrint();
+void readGyroData();
+
+const float DEGREE_PER_PI = 180 / M_PI;
+
+enum CHANNEL
 {
-  return (val - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-enum CHANNEL {ROLL = 0, PITCH = 1, YAW = 2, AUX = 3, CHANNEL_MAX} ;
-enum GYRO {VAL = 0, CAL = 1, ACC = 2, GYRO_MAX} ;
+  ROLL = 0,
+  PITCH = 1,
+  YAW = 2,
+  AUX = 3,
+  CHANNEL_MAX
+};
+enum GYRO
+{
+  VAL = 0,
+  CAL = 1,
+  ACC = 2,
+  GYRO_MAX
+};
 
 typedef struct RPY
 {

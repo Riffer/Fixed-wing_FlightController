@@ -34,90 +34,28 @@ THE SOFTWARE.
 #include <Arduino.h>
 #include <Wire.h>
 #include <math.h>
-//#include <MS5611.h>
 #include <Simple_Wire.h>
-#include <Simple_MPU6050.h>
-#include <jm_CPPM.h>
+#include <Simple_MPU6050.h> // using SDA+SCL (I2C) address 0x68, see Simple_MPU6050.cpp
+#include <jm_CPPM.h> // using PIN8 (look for CPPM_ICP1)
+#include <ServoTimer2.h>
+// #include <MS5611.h>
 
 #include "main.h"
 
-#define MPU6050_ADDR 0x68 // Address of MPU-6050
-#define MPU6050_PWR_MGMT_1 0x6B
-#define MPU6050_GYRO_XOUT_H 0x43
-#define MPU6050_ACCEL_XOUT_H 0x3B
-#define INTERRUPT_PIN 2 // use pin 2 on Arduino Uno
-#define CALIBRATE_DPM_OFFSET 6
-#define MILLI_SEC 1000
-#define FS_SEL_0_GYRO 131.0
-
-// Set Offset, scaled for min sensitivity
-#define GYRO_OFFSET_X 120
-#define GYRO_OFFSET_Y -22
-#define GYRO_OFFSET_Z -4
-#define ACC_OFFSET_X -2927
-#define ACC_OFFSET_Y -339
-#define ACC_OFFSET_Z 1836
-
-#define KP 1.0
-#define KI 0.2
-#define KD 1.0
-#define CENTER_OF_SERVO 90
-
-#define DEADZONE 50
-#define AILERON_CHANNEL_OFFSET PWM_MID
-#define ELEVATOR_CHANNEL_OFFSET PWM_MID
-#define YAW_CHANNEL_OFFSET PWM_MID
-
-#define FLIGHT_MODE_0 PWM_MAX
-#define FLIGHT_MODE_1 PWM_MID
-#define FLIGHT_MODE_2 PWM_MIN
-
-const float DEGREE_PER_PI = 180 / M_PI;
-
-
-#include <ServoTimer2.h>
-//#define ServoWrite(servo, degree) servo.write(mapT((double)degree, (double)0, (double)CENTER_OF_SERVO * 2, (double)PWM_MIN, (double)PWM_MAX))
-
-#define ServoWrite(servo, degree) servo.write(mapf(degree, 0, (CENTER_OF_SERVO * 2), PWM_MIN, PWM_MAX))
-#define ServoWriteMicroseconds(servo, ms) servo.write(ms)
+ServoTimer2 servoRudder, servoAileron, servoElevator, servoAileron2;
 
 Simple_MPU6050 mpu;
 
-ServoTimer2 servoRudder, servoAileron, servoElevator, servoAileron2;
-
-RPY Sensor; // Data of Axis from MPU6050
+RPY Sensor;  // Data of Axis from MPU6050
 RPY Channel; // Data of Axis from Receiver
 dRPY PIDFiltered; // Data of Axis from PID Function
-
+Pid rollPID, pitchPID, yawPID;
 
 // MS5611 ms5611;
 // long realPressure;                                            // Pressure value
 // double referencePressure;                                     // Reference P
 // float absoluteAltitude, relativeAltitude;                     // Altitude
 
-
-VectorInt16 gy;            // Raw data of Gyro Z
-
-
-
-Pid rollPID, pitchPID, yawPID;
-
-void initMPU6050();
-bool verifyConnection();
-void setGyroAccOffset();
-void calibrateDMP();
-void initServo();
-void initPID();
-void getChannelInput();
-void getDmpYPR(int16_t *gyro, int16_t *accel, int32_t *quat);
-int getSystemSignal();
-void manualFlightControl();
-void setAutoYPR();
-void relativeLeveling();
-void setAutoPID();
-void pidLeveling();
-void debugPrint();
-void readGyroData();
 
 void setup()
 {
@@ -128,7 +66,6 @@ void setup()
 
    Serial.println(F("Initializing DMP..."));
   initMPU6050();      // Initialize MPU6050 for I2C
-  setGyroAccOffset(); // Supply your own gyro offsets here, scaled for min sensitivity
 
   //  ms5611.begin();
   //  referencePressure = ms5611.readPressure();
@@ -140,7 +77,7 @@ void setup()
 
 void loop()
 {
-  getChannelInput(); // get channel input from CPPM (se jm_CPPM.h "CPPM_ICP1" for PIN)
+  copyChannelInput(); // get channel input from CPPM (se jm_CPPM.h "CPPM_ICP1" for PIN)
 
   // getAltitude();
 
@@ -176,32 +113,9 @@ void initMPU6050()
 {
   Serial.println(F("Initializing mpu..."));
   mpu.begin();
-  mpu.CalibrateMPU(); // Calibrates the MPU.
+  mpu.CalibrateMPU(CALIBRATE_DPM_OFFSET); // Calibrates the MPU.
   mpu.load_DMP_Image();
   mpu.on_FIFO(getDmpYPR);
-}
-
-bool verifyConnection()
-{
-  bool test = mpu.TestConnection();
-  // Verify connection
-  Serial.println(F("Testing device connections...\nMPU6050 connection "));
-  Serial.println(test ? F("successful") : F("failed"));
-  return test;
-}
-
-void setGyroAccOffset()
-{
-  // Supply your own gyro offsets here, scaled for min sensitivity
-  mpu.setOffset(ACC_OFFSET_X, ACC_OFFSET_Y, ACC_OFFSET_Z, GYRO_OFFSET_X, GYRO_OFFSET_Y, GYRO_OFFSET_Z);
-}
-
-void calibrateDMP()
-{
-  // Calibration Time: generate offsets and calibrate MPU6050
-  mpu.CalibrateAccel(CALIBRATE_DPM_OFFSET);
-  mpu.CalibrateGyro(CALIBRATE_DPM_OFFSET);
-  mpu.PrintActiveOffsets();
 }
 
 // Attach pin to servo, And set to middle
@@ -257,7 +171,6 @@ void computePID(Pid *target, float input, int limitMin, int limitMax)
 }
 
 // Setting Flight Control mode
-// simplified version from ChatGPT using abs()
 int getSystemSignal()
 {
   if (abs(Channel.aux - FLIGHT_MODE_0) <= DEADZONE) // prüfe, ob Channel.aux in der Nähe von FLIGHT_MODE_0 liegt
@@ -271,7 +184,7 @@ int getSystemSignal()
 }
 
 // Get Channel PWM value
-void getChannelInput()
+void copyChannelInput()
 {
   CPPM.cycle(); // update some variables and check for timeouts...
 
@@ -300,12 +213,12 @@ void getDmpYPR(int16_t *gyro, int16_t *accel, int32_t *quat)
 
   // Calculate dt
   cTime = millis();
+  
   dt = (cTime - pTime) / MILLI_SEC;
   pTime = cTime;
 
   gyroZ = (gyro[2] / FS_SEL_0_GYRO) * dt; // TODO: check is this really Z?!
   gyroFiltered = 0.98 * gyroFiltered + 0.02 * gyroZ;
-
 }
 
 // Get Alititude from ms5611, This function is currently not use.
