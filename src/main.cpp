@@ -40,7 +40,6 @@ THE SOFTWARE.
 #include <jm_CPPM.h>
 
 #include "main.h"
-#include "fakeservo.hpp" // simple thin fake servo class
 
 #define MPU6050_ADDR 0x68 // Address of MPU-6050
 #define MPU6050_PWR_MGMT_1 0x6B
@@ -60,7 +59,7 @@ THE SOFTWARE.
 #define ACC_OFFSET_Z 1836
 
 #define KP 1.0
-#define KI 0.1
+#define KI 0.2
 #define KD 1.0
 #define CENTER_OF_SERVO 90
 
@@ -75,55 +74,31 @@ THE SOFTWARE.
 
 const float DEGREE_PER_PI = 180 / M_PI;
 
-#define ServoT2
 
-#ifndef ServoT2
-#define ServoWrite(servo, degree) servo.write(degree)
-#define ServoWriteMicroseconds(servo, ms) servo.writeMicroseconds(ms)
-#else
 #include <ServoTimer2.h>
-#define ServoWrite(servo, degree) servo.write(mapf(degree, 0, 180, 1000,2000))
+//#define ServoWrite(servo, degree) servo.write(mapT((double)degree, (double)0, (double)CENTER_OF_SERVO * 2, (double)PWM_MIN, (double)PWM_MAX))
+
+#define ServoWrite(servo, degree) servo.write(mapf(degree, 0, (CENTER_OF_SERVO * 2), PWM_MIN, PWM_MAX))
 #define ServoWriteMicroseconds(servo, ms) servo.write(ms)
-#endif
 
 Simple_MPU6050 mpu;
 
-// MPU control/status vars
-uint8_t mpuIntStatus;  // holds actual interrupt status byte from MPU
-uint8_t devStatus = 0; // return status after each device operation (0 = success, !0 = error)
-// uint16_t packetSize;            // expected DMP packet size (default is 42 bytes)
-uint16_t fifoCount;     // count of all bytes currently in FIFO
-uint8_t fifoBuffer[64]; // FIFO storage buffer
+ServoTimer2 servoRudder, servoAileron, servoElevator, servoAileron2;
 
-Quaternion q;        // [w, x, y, z]         quaternion container
-VectorFloat gravity; // [x, y, z]            gravity vector
-float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
+RPY Sensor; // Data of Axis from MPU6050
+RPY Channel; // Data of Axis from Receiver
+dRPY PIDFiltered; // Data of Axis from PID Function
 
-#ifndef ServoT2
-FakeServo
-#else
-ServoTimer2
-#endif
-    servoRudder, servoAileron, servoElevator, servoAileron2; 
-
-float rollSensor, pitchSensor, yawSensor;                          // Data of Axis from MPU6050
-float rollChannel, pitchChannel, yawChannel;                       // Data of Axis from Receiver
-double rollPidFiltered, pitchPidFiltered, yawPidFiltered;          // Data of Axis from PID Function
-float knobChannel;                                                 // Flightmodes
 
 // MS5611 ms5611;
 // long realPressure;                                            // Pressure value
 // double referencePressure;                                     // Reference P
 // float absoluteAltitude, relativeAltitude;                     // Altitude
 
-float gyroZ, gyroFiltered; // Gyro Z
+
 VectorInt16 gy;            // Raw data of Gyro Z
 
-typedef struct Pid // For PID Controll
-{
-  float total, output, lastInput, setpoint;
-  unsigned long lastTime, sampleTime = 100;
-} Pid;
+
 
 Pid rollPID, pitchPID, yawPID;
 
@@ -141,21 +116,17 @@ void setAutoYPR();
 void relativeLeveling();
 void setAutoPID();
 void pidLeveling();
-void printYPRToSerial();
+void debugPrint();
 void readGyroData();
-void adjustServos();
 
 void setup()
 {
   Serial.begin(115200); // Initialize serial communication
-  while (!Serial)
-    delay(30);
-  ; // Wait for Leonardo enumeration, others continue immediately
-
+  while (!Serial) delay(30); // Wait for Leonardo enumeration, others continue immediately
+  
   CPPM.begin(); // setup CPPM - will be called in loop
 
-  // verifyConnection(); // Verify connection and wait for start
-  Serial.println(F("Initializing DMP..."));
+   Serial.println(F("Initializing DMP..."));
   initMPU6050();      // Initialize MPU6050 for I2C
   setGyroAccOffset(); // Supply your own gyro offsets here, scaled for min sensitivity
 
@@ -169,7 +140,6 @@ void setup()
 
 void loop()
 {
-  /*-------------Using DMP Preset------------*/
   getChannelInput(); // get channel input from CPPM (se jm_CPPM.h "CPPM_ICP1" for PIN)
 
   // getAltitude();
@@ -195,8 +165,7 @@ void loop()
     pidLeveling();
     break;
   }
-  adjustServos();
-  printYPRToSerial();
+  debugPrint();
 }
 
 /*==================================================================
@@ -291,11 +260,11 @@ void computePID(Pid *target, float input, int limitMin, int limitMax)
 // simplified version from ChatGPT using abs()
 int getSystemSignal()
 {
-  if (abs(knobChannel - FLIGHT_MODE_0) <= DEADZONE) // prüfe, ob knobChannel in der Nähe von FLIGHT_MODE_0 liegt
+  if (abs(Channel.aux - FLIGHT_MODE_0) <= DEADZONE) // prüfe, ob Channel.aux in der Nähe von FLIGHT_MODE_0 liegt
     return 0;
-  else if (abs(knobChannel - FLIGHT_MODE_1) <= DEADZONE) // prüfe, ob knobChannel in der Nähe von FLIGHT_MODE_1 liegt
+  else if (abs(Channel.aux - FLIGHT_MODE_1) <= DEADZONE) // prüfe, ob Channel.aux in der Nähe von FLIGHT_MODE_1 liegt
     return 1;
-  else if (abs(knobChannel - FLIGHT_MODE_2) <= DEADZONE) // prüfe, ob knobChannel in der Nähe von FLIGHT_MODE_2 liegt
+  else if (abs(Channel.aux - FLIGHT_MODE_2) <= DEADZONE) // prüfe, ob Channel.aux in der Nähe von FLIGHT_MODE_2 liegt
     return 2;
 
   return 0;
@@ -308,17 +277,22 @@ void getChannelInput()
 
   if (CPPM.synchronized()) // only in sync at specific timespans (TODO: more buffer?)
   {
-    pitchChannel = CPPM.read_us(PITCH); // Receiver Pitch
-    rollChannel = CPPM.read_us(ROLL);   // Receiver Roll
-    yawChannel = CPPM.read_us(YAW);     // Receiver Yaw
-    knobChannel = CPPM.read_us(KNOB);   // Intensity Knob
+    Channel.pitch = CPPM.read_us(PITCH); // Receiver Pitch
+    Channel.roll = CPPM.read_us(ROLL);   // Receiver Roll
+    Channel.yaw = CPPM.read_us(YAW);     // Receiver Yaw
+    Channel.aux = CPPM.read_us(AUX);   // Intensity Knob
   }
 }
 
+float gyroFiltered = 0.0f; // Gyro Z
+float ypr[3];              // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 void getDmpYPR(int16_t *gyro, int16_t *accel, int32_t *quat)
 {
   float dt, cTime;
-  static float pTime = millis(); // Timer for Gyro Z
+  static float pTime = millis();    // Timer for Gyro Z
+  Quaternion q;                     // [w, x, y, z]         quaternion container
+  VectorFloat gravity;              // [x, y, z]            gravity vector
+  float gyroZ;                      // Gyro Z
 
   mpu.GetQuaternion(&q, quat);
   mpu.GetGravity(&gravity, &q);
@@ -331,6 +305,7 @@ void getDmpYPR(int16_t *gyro, int16_t *accel, int32_t *quat)
 
   gyroZ = (gyro[2] / FS_SEL_0_GYRO) * dt; // TODO: check is this really Z?!
   gyroFiltered = 0.98 * gyroFiltered + 0.02 * gyroZ;
+
 }
 
 // Get Alititude from ms5611, This function is currently not use.
@@ -345,131 +320,131 @@ void getDmpYPR(int16_t *gyro, int16_t *accel, int32_t *quat)
 void setAutoYPR()
 {
   // Get sensor value
-  yawSensor = gyroFiltered * 1000;
-  pitchSensor = ypr[1] * DEGREE_PER_PI;
-  rollSensor = ypr[2] * DEGREE_PER_PI;
+  Sensor.yaw = gyroFiltered * 1000;
+  Sensor.pitch = ypr[1] * DEGREE_PER_PI;
+  Sensor.roll = ypr[2] * DEGREE_PER_PI;
 
   // Conversion angle overflowed
-  if (abs(rollSensor) > 90 && pitchSensor >= 0)
-    pitchSensor = 180 - pitchSensor;
-  else if (abs(rollSensor) > 90 && pitchSensor < 0)
-    pitchSensor = -(180 + pitchSensor);
-  else if (abs(pitchSensor) > 90 && rollSensor >= 0)
-    rollSensor = 180 - rollSensor;
-  else if (abs(pitchSensor) > 90 && rollSensor < 0)
-    rollSensor = -(180 + rollSensor);
+  if (abs(Sensor.roll) > 90 && Sensor.pitch >= 0)
+    Sensor.pitch = 180 - Sensor.pitch;
+  else if (abs(Sensor.roll) > 90 && Sensor.pitch < 0)
+    Sensor.pitch = -(180 + Sensor.pitch);
+  else if (abs(Sensor.pitch) > 90 && Sensor.roll >= 0)
+    Sensor.roll = 180 - Sensor.roll;
+  else if (abs(Sensor.pitch) > 90 && Sensor.roll < 0)
+    Sensor.roll = -(180 + Sensor.roll);
 
   // Conversion sensor angle to servo angle
-  yawSensor = 90 + yawSensor;
-  pitchSensor = 90 + pitchSensor;
-  rollSensor = 90 - rollSensor;
+  Sensor.yaw = 90 + Sensor.yaw;
+  Sensor.pitch = 90 + Sensor.pitch;
+  Sensor.roll = 90 - Sensor.roll;
 
   // Limits the angle
-  yawSensor = constrain(yawSensor, 0, 180);
-  pitchSensor = constrain(pitchSensor, 0, 180);
-  rollSensor = constrain(rollSensor, 0, 180);
+  Sensor.yaw = constrain(Sensor.yaw, 0, 180);
+  Sensor.pitch = constrain(Sensor.pitch, 0, 180);
+  Sensor.roll = constrain(Sensor.roll, 0, 180);
 }
 
 // Set value for PID Control mode
 void setAutoPID()
 {
   // Get sensor value
-  yawSensor = gyroFiltered * 1000;
-  pitchSensor = ypr[1] * DEGREE_PER_PI;
-  rollSensor = ypr[2] * DEGREE_PER_PI;
+  Sensor.yaw = gyroFiltered * 1000;
+  Sensor.pitch = ypr[1] * DEGREE_PER_PI;
+  Sensor.roll = ypr[2] * DEGREE_PER_PI;
 
   // PID Control
-  computePID(&rollPID, rollSensor, -90, 90);
-  computePID(&pitchPID, pitchSensor, -90, 90);
-  computePID(&yawPID, yawSensor, -90, 90);
+  computePID(&rollPID, Sensor.roll, -90, 90);
+  computePID(&pitchPID, Sensor.pitch, -90, 90);
+  computePID(&yawPID, Sensor.yaw, -90, 90);
 
   // Change to Servo Value
-  yawPidFiltered = 90 + yawPID.output;
-  rollPidFiltered = 90 - rollPID.output;
-  pitchPidFiltered = 90 + pitchPID.output;
+  PIDFiltered.yaw = 90 + yawPID.output;
+  PIDFiltered.roll = 90 - rollPID.output;
+  PIDFiltered.pitch = 90 + pitchPID.output;
 
   // Limits the angle
-  yawPidFiltered = constrain(yawPidFiltered, 0, 180);
-  rollPidFiltered = constrain(rollPidFiltered, 0, 180);
-  pitchPidFiltered = constrain(pitchPidFiltered, 0, 180);
+  PIDFiltered.yaw = constrain(PIDFiltered.yaw, 0, 180);
+  PIDFiltered.roll = constrain(PIDFiltered.roll, 0, 180);
+  PIDFiltered.pitch = constrain(PIDFiltered.pitch, 0, 180);
 }
 
 // Relative Level Control
 void relativeLeveling()
 {
-  if ((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
+  if ((Channel.roll > AILERON_CHANNEL_OFFSET - DEADZONE) && (Channel.roll < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
-    ServoWrite(servoAileron, rollSensor);
-    ServoWrite(servoAileron2, rollSensor); // inverted value for opposite one
+    ServoWrite(servoAileron, Sensor.roll);
+    ServoWrite(servoAileron2, Sensor.roll); // inverted value for opposite one
   }
   else
   {
-    ServoWriteMicroseconds(servoAileron, rollChannel);
-    ServoWriteMicroseconds(servoAileron2, rollChannel);
+    ServoWriteMicroseconds(servoAileron, Channel.roll);
+    ServoWriteMicroseconds(servoAileron2, Channel.roll);
   }
 
-  if ((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
+  if ((Channel.pitch > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (Channel.pitch < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
   {
-    ServoWrite(servoElevator, pitchSensor);
+    ServoWrite(servoElevator, Sensor.pitch);
   }
   else
   {
-    ServoWriteMicroseconds(servoElevator, pitchChannel);
+    ServoWriteMicroseconds(servoElevator, Channel.pitch);
   }
 
-  if ((yawChannel > YAW_CHANNEL_OFFSET - DEADZONE) && (yawChannel < YAW_CHANNEL_OFFSET + DEADZONE))
+  if ((Channel.yaw > YAW_CHANNEL_OFFSET - DEADZONE) && (Channel.yaw < YAW_CHANNEL_OFFSET + DEADZONE))
   {
-    ServoWrite(servoRudder, yawSensor);
+    ServoWrite(servoRudder, Sensor.yaw);
   }
   else
   {
-    ServoWriteMicroseconds(servoRudder, yawChannel);
+    ServoWriteMicroseconds(servoRudder, Channel.yaw);
   }
 }
 
 // PID Level Control
 void pidLeveling()
 {
-  if ((rollChannel > AILERON_CHANNEL_OFFSET - DEADZONE) && (rollChannel < AILERON_CHANNEL_OFFSET + DEADZONE))
+  if ((Channel.roll > AILERON_CHANNEL_OFFSET - DEADZONE) && (Channel.roll < AILERON_CHANNEL_OFFSET + DEADZONE))
   {
-    ServoWrite(servoAileron, rollPidFiltered);
-    ServoWrite(servoAileron2, rollPidFiltered);
+    ServoWrite(servoAileron, PIDFiltered.roll);
+    ServoWrite(servoAileron2, PIDFiltered.roll);
   }
   else
   {
-    ServoWriteMicroseconds(servoAileron, rollChannel);
-    ServoWriteMicroseconds(servoAileron2, rollChannel);
+    ServoWriteMicroseconds(servoAileron, Channel.roll);
+    ServoWriteMicroseconds(servoAileron2, Channel.roll);
   }
 
-  if ((pitchChannel > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (pitchChannel < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
+  if ((Channel.pitch > ELEVATOR_CHANNEL_OFFSET - DEADZONE) && (Channel.pitch < ELEVATOR_CHANNEL_OFFSET + DEADZONE))
   {
-    ServoWrite(servoElevator, pitchPidFiltered);
+    ServoWrite(servoElevator, PIDFiltered.pitch);
   }
   else
   {
-    ServoWriteMicroseconds(servoElevator, pitchChannel);
+    ServoWriteMicroseconds(servoElevator, Channel.pitch);
   }
 
-  if ((yawChannel > YAW_CHANNEL_OFFSET - DEADZONE) && (yawChannel < YAW_CHANNEL_OFFSET + DEADZONE))
+  if ((Channel.yaw > YAW_CHANNEL_OFFSET - DEADZONE) && (Channel.yaw < YAW_CHANNEL_OFFSET + DEADZONE))
   {
-    ServoWrite(servoRudder, yawPidFiltered);
+    ServoWrite(servoRudder, PIDFiltered.yaw);
   }
   else
   {
-    ServoWriteMicroseconds(servoRudder, yawChannel);
+    ServoWriteMicroseconds(servoRudder, Channel.yaw);
   }
 }
 
 // Manual Control
 void manualFlightControl()
 {
-  ServoWriteMicroseconds(servoAileron, rollChannel);
-  ServoWriteMicroseconds(servoAileron2, rollChannel);
-  ServoWriteMicroseconds(servoElevator, pitchChannel);
-  ServoWriteMicroseconds(servoRudder, yawChannel);
+  ServoWriteMicroseconds(servoAileron, Channel.roll);
+  ServoWriteMicroseconds(servoAileron2, Channel.roll);
+  ServoWriteMicroseconds(servoElevator, Channel.pitch);
+  ServoWriteMicroseconds(servoRudder, Channel.yaw);
 }
 
-void printYPRToSerial()
+void debugPrint()
 {
   static unsigned int lastTime = millis();
 
@@ -497,25 +472,25 @@ void printYPRToSerial()
   //Serial.print("status: ");
   Serial.print(sStatus);
   Serial.print(" Yaw:");
-  Serial.print(yawSensor);
+  Serial.print(Sensor.yaw);
   Serial.print(" Roll: ");
-  Serial.print(rollSensor);
+  Serial.print(Sensor.roll);
   Serial.print(" Pitch: ");
-  Serial.print(pitchSensor);
+  Serial.print(Sensor.pitch);
   Serial.print(" Knob: ");
-  Serial.print(knobChannel);
+  Serial.print(Channel.aux);
   Serial.print(" Ail: ");
-  Serial.print(rollChannel);
+  Serial.print(Channel.roll);
   Serial.print(" Eler: ");
-  Serial.print(pitchChannel);
+  Serial.print(Channel.pitch);
   Serial.print(" Rud: ");
-  Serial.print(yawChannel);
+  Serial.print(Channel.yaw);
   Serial.print(" PIDYaw: ");
-  Serial.print(yawPidFiltered);
+  Serial.print(PIDFiltered.yaw);
   Serial.print(" PIDRoll: ");
-  Serial.print(rollPidFiltered);
+  Serial.print(PIDFiltered.roll);
   Serial.print(" PIDPitch: ");
-  Serial.println(pitchPidFiltered);
+  Serial.println(PIDFiltered.pitch);
   // Serial.print("\tabAlt: ");
   // Serial.print(absoluteAltitude);
   // Serial.print("\trelAlt: ");
@@ -531,61 +506,3 @@ void printYPRToSerial()
 //  // TODO: need to apply throttle
 //}
 
-/**
- * @brief nice little servo pulsed without a need for additional timer
- * 
- */
-void adjustServos()
-{
-  #ifndef ServoT2
-  static int loopCounter = 0;
-  static unsigned long loop_start_time = micros();
-
-  // wait until at least 0,4 miliseconds gone by (1000 micros are 1 milis, 1 second has 1.000.000 micros!) since last time
-   if (micros() - loop_start_time < 4000)
-    delayMicroseconds(4000 - (micros() - loop_start_time)); // originally this just looped, but delay does not consume CPU power
-
-
-  loop_start_time = micros(); // set loop_start_time to current value for next call
-
-  loopCounter++;
-  if (loopCounter >= 0)
-  {
-
-    loopCounter = 0;
-    PORTD |= B11110000;
-    unsigned long timer_channel_1 = servoAileron.readMicroseconds() + loop_start_time;
-    unsigned long timer_channel_2 = servoElevator.readMicroseconds() + loop_start_time;
-    unsigned long timer_channel_3 = servoAileron2.readMicroseconds() + loop_start_time;
-    unsigned long timer_channel_4 = servoRudder.readMicroseconds() + loop_start_time;
-
-    // PWM out in a loop - initally set high for all 4 channels and look until all 4 channels gone by
-    byte cnt = 0;
-    while (cnt < 4) // leading to slowdown of the loop
-    {
-      cnt = 0;
-      unsigned long esc_loop_start_time = micros();
-      if (timer_channel_1 <= esc_loop_start_time)
-      {
-        PORTD &= B11101111;
-        cnt++;
-      }
-      if (timer_channel_2 <= esc_loop_start_time)
-      {
-        PORTD &= B11011111;
-        cnt++;
-      }
-      if (timer_channel_3 <= esc_loop_start_time)
-      {
-        PORTD &= B10111111;
-        cnt++;
-      }
-      if (timer_channel_4 <= esc_loop_start_time)
-      {
-        PORTD &= B01111111;
-        cnt++;
-      }
-    }
-  }
-  #endif
-}

@@ -1,4 +1,3 @@
-
 #ifndef MAIN_H
 #define MAIN_H
 
@@ -11,6 +10,14 @@
 
 #define MPU_ADDRESS 0x68
 
+/*
+template <typename T>
+T mapT(T val, T in_min, T in_max, T out_min, T out_max)
+{
+  return (val - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+*/
+
 
 // simple utility routine:
 inline double mapf(double val, double in_min, double in_max, double out_min, double out_max)
@@ -18,53 +25,23 @@ inline double mapf(double val, double in_min, double in_max, double out_min, dou
   return (val - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-enum CHANNEL {ROLL = 0, PITCH = 1, YAW = 2, KNOB = 3, CHANNEL_MAX} ;
+enum CHANNEL {ROLL = 0, PITCH = 1, YAW = 2, AUX = 3, CHANNEL_MAX} ;
 enum GYRO {VAL = 0, CAL = 1, ACC = 2, GYRO_MAX} ;
 
-
-struct pidgainStruct
+typedef struct RPY
 {
-  float p = 0;
-  float i = 0;
-  float d = 0;
-  const int max = 400;
-  const int max_i = 100;
-};
-
-
-struct channelValStruct 
-{              // INPUT:              // OUTPUT:
-  int ch1 = 0; // Receiver Roll       // ROLL
-  int ch2 = 0; // Receiver Pitch      // PITCH
-  int ch3 = 0; // Receiver Yaw        // INVERTED ROLL
-  int ch4 = 0; // Intensity Knob      // YAW
-};
-
-struct gyroStruct
+  float roll, pitch, yaw, aux;
+} RPY;
+typedef struct dRPY
 {
-  long x = 0;
-  long y = 0;
-  long z = 0;
-  long totalVector = 0;
-};
-
-struct angleValStruct
+  double roll, pitch, yaw;
+} dRPY;
+typedef struct Pid // For PID Controll
 {
-  float chan;
-  float acc;
-  float out;
-  float adjust;
-};
+  float total, output, lastInput, setpoint;
+  unsigned long lastTime, sampleTime = 100;
+} Pid;
 
-struct PIDStruct
-{
-  float i_mem;
-  float input;
-  float output;
-  float setpoint;
-  float d_error;
-  float gyro;
-};
 
 #define DEBUG 1 //0 for turn off, 1 for turn on - this works function wise and the compiler optimizes if(0){} out
 
