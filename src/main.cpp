@@ -280,7 +280,7 @@ void computePID(Pid *target, float input, int limitMin, int limitMax)
 
     float output = KP * error;
     output += target->total - KD * dInput;
-    target->output = constrain(output, limitMax, limitMax);
+    target->output = constrain(output, limitMin, limitMax);
 
     target->lastInput = input;
     target->lastTime = now;
