@@ -38,16 +38,17 @@ THE SOFTWARE.
 #include <Simple_MPU6050.h> // using SDA+SCL (I2C) address 0x68, see Simple_MPU6050.cpp
 #include <jm_CPPM.h> // using PIN8 (look for CPPM_ICP1)
 #include <ServoTimer2.h>
-// #include <MS5611.h>
+//#include <MS5611.h>
 
 #include "main.h"
 
 
-
-// MS5611 ms5611;
-// long realPressure;                                            // Pressure value
-// double referencePressure;                                     // Reference P
-// float absoluteAltitude, relativeAltitude;                     // Altitude
+#ifdef MS5611_LIB_VERSION
+MS5611 ms5611;
+long realPressure;                                            // Pressure value
+double referencePressure;                                     // Reference P
+float absoluteAltitude, relativeAltitude;                     // Altitude
+#endif
 
 
 void setup()
@@ -60,9 +61,11 @@ void setup()
    Serial.println(F("Initializing DMP..."));
   initMPU6050();      // Initialize MPU6050 for I2C
 
-  //  ms5611.begin();
-  //  referencePressure = ms5611.readPressure();
-  //  Serial.println(ms5611.getOversampling());
+#ifdef MS5611_LIB_VERSION
+  ms5611.begin();
+  referencePressure = ms5611.getPressure();
+  Serial.println(ms5611.getOversampling());
+#endif
 
   initServo();
   initPID();
@@ -405,10 +408,12 @@ void debugPrint()
 
 // This function is currently not use
 // Failsafe function
-// void emergencyLevelling()
-//{
-//  rollPID.setpoint = 10;
-//  pitchPID.setpoint = 10;
-//  // TODO: need to apply throttle
-//}
+#ifdef MS5611_LIB_VERSION
+void emergencyLevelling()
+{
+  rollPID.setpoint = 10;
+  pitchPID.setpoint = 10;
+  // TODO: need to apply throttle
+}
+#endif
 

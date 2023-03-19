@@ -1,0 +1,9 @@
+[submodule "lib/ServoTimer2"]
+	path = lib/ServoTimer2
+	url = git@github.com:nabontra/ServoTimer2.git
+[submodule "lib/Simple_Wire"]
+	path = lib/Simple_Wire
+	url = git@github.com:Riffer/Simple_Wire.git
+[submodule "lib/Simple_MPU6050"]
+	path = lib/Simple_MPU6050
+	url = git@github.com:Riffer/Simple_MPU6050.git

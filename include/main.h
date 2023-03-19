@@ -57,6 +57,7 @@ void setAutoPID();
 void pidLeveling();
 void debugPrint();
 void readGyroData();
+void emergencyLevelling();
 
 const float DEGREE_PER_PI = 180 / M_PI;
 
