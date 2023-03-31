@@ -7,3 +7,6 @@
 [submodule "lib/Simple_MPU6050"]
 	path = lib/Simple_MPU6050
 	url = git@github.com:Riffer/Simple_MPU6050.git
+[submodule "lib/BMP180_Breakout_Arduino_Library"]
+	path = lib/BMP180_Breakout_Arduino_Library
+	url = git@github.com:sparkfun/BMP180_Breakout_Arduino_Library.git

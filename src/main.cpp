@@ -38,13 +38,12 @@ THE SOFTWARE.
 #include <Simple_MPU6050.h> // using SDA+SCL (I2C) address 0x68, see Simple_MPU6050.cpp
 #include <jm_CPPM.h> // using PIN8 (look for CPPM_ICP1)
 #include <ServoTimer2.h>
-//#include <MS5611.h>
+#include <SFE_BMP180.h>
 
 #include "main.h"
 
-
-#ifdef MS5611_LIB_VERSION
-MS5611 ms5611;
+#ifdef SFE_BMP180_h
+SFE_BMP180 bmp180;
 long realPressure;                                            // Pressure value
 double referencePressure;                                     // Reference P
 float absoluteAltitude, relativeAltitude;                     // Altitude
@@ -112,6 +111,17 @@ void initMPU6050()
   mpu.CalibrateMPU(CALIBRATE_DPM_OFFSET); // Calibrates the MPU.
   mpu.load_DMP_Image();
   mpu.on_FIFO(getDmpYPR);
+  mpu.mpu_set_bypass(true);
+  serial_printlnF("scanning");
+  mpu.I2CScanner();
+  serial_printlnF("\nend of scanning");
+  bmp180.begin();
+  bmp180.startPressure(3);
+  double T = 0;
+  delay(1000);
+  serial_println(bmp180.getTemperature(T));
+  serial_println(T);
+  serial_println(bmp180.getError());
 }
 
 // Attach pin to servo, And set to middle
@@ -408,7 +418,7 @@ void debugPrint()
 
 // This function is currently not use
 // Failsafe function
-#ifdef MS5611_LIB_VERSION
+#ifdef SFE_BMP180_h
 void emergencyLevelling()
 {
   rollPID.setpoint = 10;
