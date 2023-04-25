@@ -1,7 +1,7 @@
 # This fork uses
-* platformio instead of Ardunio IDE
-* CPPM instead of PWM as input
-* Libraries for MPU and Servo
+* PlatformIO instead of Ardunio IDE => better code editing 
+* CPPM instead of PWM as input => so you can use on cable instead of 4 
+* libraries for MPU and Servo instead of direct coding => easier to migrate further on
 
 
 # Fixed-wing_FlightController
