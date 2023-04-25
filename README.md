@@ -1,3 +1,9 @@
+# This fork uses
+* platformio instead of Ardunio IDE
+* CPPM instead of PWM as input
+* Libraries for MPU and Servo
+
+
 # Fixed-wing_FlightController
 This file is a fixed-wing aircraft horizontal posture control program using Arduino.
 
