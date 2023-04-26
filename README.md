@@ -1,8 +1,27 @@
-# Why this fork?
-* PlatformIO instead of Ardunio IDE => better code editing 
-* CPPM instead of PWM as input => so you can use on cable instead of 4 
-* libraries for MPU and Servo instead of direct coding => easier to migrate further on
+# credits for the initial version go to  [s-kim-mcg](https://github.com/s-kim-mcg)
 
+# Why this fork?
+* I had Arduino Nano (diecimilaatmega328) in stock and needed some changes for the pinouts.
+* VScode and PlatformIO instead of Ardunio IDE => I am lazy and also have a bad memory, so method completion and so on just catched me. 
+* To get a better understanding of the stabilizer functions I refactored the code but you will find most of it intact or at least similar.
+* I wanted CPPM instead of PWM as input to use only one cable instead of 4 with smaller receivers having only CPPM output.
+* libraries for MPU and Servo instead of direct coding => easier to migrate to other platforms
+
+# How to use this fork?
+* Install VSCode and PlatformIO (as a plugin)
+* Clone the repository in PlatformIO
+* Wait a bit until the plaform is automatically installed and configured
+* Compile and upload to your Arduino Nano (most likely you find diecimilaatmega328 version, that is a clone of the initial Arduino Nano)
+
+# Pinout of this fork
+* PIN D4-D7 are the PWM out for standard servos
+* PIN D8 for CPPM input
+* PIN A4 (SDA) and A5 (SCL) to MPU6050
+* Connect the Arduino Nano to 5 Volt of your ESC (make sure about the voltage!)
+
+
+# below you find the original README.md
+---
 
 # Fixed-wing_FlightController
 This file is a fixed-wing aircraft horizontal posture control program using Arduino.
