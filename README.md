@@ -1,7 +1,7 @@
-# credits for the initial version go to  [s-kim-mcg](https://github.com/s-kim-mcg)
+# Credits for the initial version go to  [s-kim-mcg](https://github.com/s-kim-mcg)
 
 # Why this fork?
-* I had Arduino Nano (diecimilaatmega328) in stock and needed some changes for the pinouts.
+* I had Arduino Nano V3 (diecimilaatmega328) in stock and needed some changes for the pinouts.
 * VScode and PlatformIO instead of Ardunio IDE => I am lazy and also have a bad memory, so method completion and so on just catched me. 
 * To get a better understanding of the stabilizer functions I refactored the code but you will find most of it intact or at least similar.
 * I wanted CPPM instead of PWM as input to use only one cable instead of 4 with smaller receivers having only CPPM output.
@@ -17,7 +17,7 @@
 * PIN D4-D7 are the PWM out for standard servos
 * PIN D8 for CPPM input
 * PIN A4 (SDA) and A5 (SCL) to MPU6050
-* Connect the Arduino Nano to 5 Volt of your ESC (make sure about the voltage!)
+* Connect the Arduino Nano V3 to 5 volt of your ESC (make sure about the voltage, the diecimila can convert 7-12 volt from vin, but it wan't be ok for your servos! )
 
 
 # below you find the original README.md
